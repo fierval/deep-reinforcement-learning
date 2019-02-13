@@ -1,0 +1,13 @@
+{
+    "python.pythonPath": "/home/boris/anaconda3/envs/gym/bin/python",
+    "cmake.configureOnOpen": true,
+    "git.enableSmartCommit": true,
+    "git.autofetch": true,
+    "window.zoomLevel": 0,
+    "python.jediEnabled": false,
+    "python.venvFolders": [
+        "anaconda3/envs",
+        ".pyenv",
+        ".direnv"
+    ]
+}
