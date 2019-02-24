@@ -31,6 +31,7 @@ class Agent():
             state_size (int): dimension of each state
             action_size (int): dimension of each action
             seed (int): random seed
+            num_episodes (int): number of training epochs
         """
         self.state_size = state_size
         self.action_size = action_size
@@ -42,7 +43,9 @@ class Agent():
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # Replay memory
-        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, alpha, beta, num_episodes)
+        self.anneal_beta = (1. - BETA) / num_episodes
+
+        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, ALPHA, BETA)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
     
@@ -57,6 +60,9 @@ class Agent():
             if len(self.memory) > BATCH_SIZE:
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
+
+    def update_weights(self):
+        self.memory.anneal_beta(self.anneal_beta)
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
@@ -97,7 +103,7 @@ class Agent():
         Q_expected = self.qnetwork_local(states).gather(1, actions)
 
         # update priorities
-        losses = torch.abs(Q_expected - Q_targets).cpu().data.numpy()
+        losses = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
         self.memory.update_priorities(idxs, losses)
 
         # Compute loss

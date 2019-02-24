@@ -6,7 +6,7 @@ import numpy as np
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
 
-    def __init__(self, action_size, buffer_size, batch_size, seed, alpha, beta, num_episodes):
+    def __init__(self, action_size, buffer_size, batch_size, seed, alpha, beta):
         """Initialize a ReplayBuffer object.
 
         Params
@@ -17,7 +17,7 @@ class ReplayBuffer:
             seed (int): random seed
             alpha (float) < 1: exponent for priorities computation
             beta (float): weight bias correction coefficient
-            num_episodes (int): number of episodes required for beta annealing to 1.0
+            anneal (int): linear annealing factor for beta
         """
         self.action_size = action_size
         self.memory = deque(maxlen=buffer_size)
@@ -26,10 +26,6 @@ class ReplayBuffer:
 
         self.alpha = alpha
         self.beta = beta
-        self.anneal = 0.0
-
-        if self.beta < 1.0:
-            self.anneal = (1.0 - self.beta) / float(num_episodes)
 
         self.buffer_size = buffer_size
 
@@ -42,17 +38,22 @@ class ReplayBuffer:
         """Add a new experience to memory."""
         e = self.experience(state, action, reward, next_state, done)
         self.memory.append(e)
+        buffer_size = len(self.memory)
+        self.priorities[buffer_size - 1] = np.max(self.priorities[:buffer_size])
     
     def sample_experiences(self):
         '''
         Sample experiences based on https://arxiv.org/pdf/1511.05952.pdf: Prioritized Experience Replay
         '''
         # update priorities for sampling
-        priorities = np.power(self.priorities, self.alpha)
-        priorities = priorities / np.sum(self.priorities)
+        buffer_size = len(self.memory)
+
+        priorities = self.priorities[:buffer_size]
+        priorities = np.power(priorities, self.alpha)
+        priorities = priorities / np.sum(priorities)
 
         # get experiences based on priorities
-        idx_priorities = np.random.choice(range(self.buffer_size), size= self.batch_size, p=priorities)
+        idx_priorities = np.random.choice(range(buffer_size), size=self.batch_size, p=priorities)
         probs = np.take(priorities, idx_priorities)
 
         return idx_priorities, probs
@@ -62,7 +63,7 @@ class ReplayBuffer:
         experience_idxs, probs = self.sample_experiences()
         experiences = [self.memory[e] for e in experience_idxs]
 
-        weights = np.power(1. / self.buffer_size * probs, self.beta)
+        weights = np.power(self.buffer_size * probs, -self.beta)
         weights = torch.from_numpy(weights / np.max(weights)).float().to(self.device)
 
         states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(self.device)
@@ -74,9 +75,11 @@ class ReplayBuffer:
         return (states, actions, rewards, next_states, dones, experience_idxs, weights)
 
     def update_priorities(self, idxs, priorities):
-        # anneal beta for next episode
-        self.beta += self.anneal
+       
         self.priorities[idxs] = priorities
+
+    def anneal_beta(self, anneal):
+        self.beta = min(self.beta + anneal, 1.)
 
     def __len__(self):
         """Return the current size of internal memory."""
