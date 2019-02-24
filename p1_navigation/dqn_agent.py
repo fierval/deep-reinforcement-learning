@@ -15,6 +15,7 @@ GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
 LR = 5e-4               # learning rate 
 UPDATE_EVERY = 4        # how often to update the network
+UPDATE_TARGET_STEPS = 1 # update target weights interval
 ALPHA = 0.8             # priority exponent for prioritized replacement
 BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
 
@@ -48,6 +49,7 @@ class Agent():
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, ALPHA, BETA)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
+        self.t_learning_step = 0
     
     def step(self, state, action, reward, next_state, done):
         # Save experience in replay memory
@@ -115,7 +117,9 @@ class Agent():
         self.optimizer.step()
 
         # ------------------- update target network ------------------- #
-        self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)                     
+        self.t_learning_step += 1
+        if self.t_learning_step % UPDATE_TARGET_STEPS == 0:
+            self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)                     
 
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.
@@ -128,4 +132,5 @@ class Agent():
             tau (float): interpolation parameter 
         """
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
+            # PyTorch copy: destination.data.copy(source.data)
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
