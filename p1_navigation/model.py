@@ -46,13 +46,16 @@ class DuelingQNetwork(nn.Module):
 
         self.fc1 = nn.Linear(state_size, fc1_size)
         self.fc2 = nn.Linear(fc1_size, fc2_size)
-        
+        fc_adv_hidden_size = fc_val_hidden_size = 32
+
         ## Here we separate into two streams
         # The one that calculate V(s)
-        self.fc_val = nn.Linear(fc2_size, 1)
+        self.fc_val_hidden = nn.Linear(fc2_size, fc_val_hidden_size)
+        self.fc_val = nn.Linear(fc_val_hidden_size, 1)
         
         # The one that calculate A(s,a)
-        self.fc_adv = nn.Linear(fc2_size, action_size)
+        self.fc_adv_hidden = nn.Linear(fc2_size, fc_adv_hidden_size)
+        self.fc_adv = nn.Linear(fc_adv_hidden_size, action_size)
 
 
 
@@ -61,8 +64,11 @@ class DuelingQNetwork(nn.Module):
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
 
-        val = self.fc_val(x)
-        adv = self.fc_adv(x)
+        val = F.relu(self.fc_val_hidden(x))
+        val = self.fc_val(val)
+
+        adv = F.relu(self.fc_adv_hidden(x))
+        adv = self.fc_adv(adv)
 
         # Q(s,a) = V(s) + (A(s,a) - max A(s, a))
         qsa = val + adv - adv.max(1)[0].unsqueeze(1).expand(state.size(0), self.num_actions)

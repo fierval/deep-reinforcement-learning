@@ -9,14 +9,14 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-BUFFER_SIZE = int(1e4)  # replay buffer size
+BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64         # minibatch size
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
 LR = 5e-4               # learning rate 
 UPDATE_EVERY = 4        # how often to update the network
 ALPHA = 0.7             # priority exponent for prioritized replacement
-BETA = 0.05              # initial beta (annealed to 1) for prioritized replacement
+BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -107,7 +107,7 @@ class Agent():
         self.memory.update_priorities(idxs, losses)
 
         # Compute loss
-        loss = F.l1_loss(Q_expected, Q_targets)
+        loss = F.mse_loss(Q_expected, Q_targets)
 
         # Minimize the loss
         self.optimizer.zero_grad()
