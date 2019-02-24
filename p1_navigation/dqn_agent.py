@@ -15,7 +15,7 @@ GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
 LR = 5e-4               # learning rate 
 UPDATE_EVERY = 4        # how often to update the network
-ALPHA = 0.7             # priority exponent for prioritized replacement
+ALPHA = 0.8             # priority exponent for prioritized replacement
 BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -103,11 +103,11 @@ class Agent():
         Q_expected = self.qnetwork_local(states).gather(1, actions)
 
         # update priorities
-        losses = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
-        self.memory.update_priorities(idxs, losses)
+        updates = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
+        self.memory.update_priorities(idxs, updates)
 
         # Compute loss
-        loss = F.mse_loss(Q_expected, Q_targets)
+        loss = F.l1_loss(Q_expected, Q_targets)
 
         # Minimize the loss
         self.optimizer.zero_grad()
