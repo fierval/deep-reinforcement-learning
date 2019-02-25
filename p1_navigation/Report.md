@@ -62,7 +62,7 @@ This is also indicated in the Priorized Experience Replay paper.
 
 Training was set to run for **1000** episodes, each of the maximul length of **2000** steps (although it appears an episode runs for a maximum of **300** steps).
 
-The agent achieved average rewards of **15** (exceeding the solution criterion) over 100 consecutive episodes at episode 340 (starting at 241). The agent was trained further to collect an average reward of **35.2** at episode 800 (starting at 701).
+The agent achieved average rewards of **15** (exceeding the solution criterion) over 100 consecutive episodes at episode 340 (starting at 241). The agent was trained further to collect an average reward of **35.6** at episode 800 (starting at 701).
 
 ```
 Episode 100	Average Score: 1.880

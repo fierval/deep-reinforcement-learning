@@ -44,7 +44,7 @@ See [Report.md](Report.md) for details.
 
 ## The Trained Agent
 
-The trained model has achieved an average score of **35.2** over 100 consecutive episodes. The length of training to achieve this score: **800** episodes.
+The trained model has achieved an average score of **35.6** over 100 consecutive episodes. The length of training to achieve this score: **800** episodes.
 
 <div style="text-align:center">
 
