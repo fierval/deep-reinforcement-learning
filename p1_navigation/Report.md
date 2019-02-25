@@ -1,10 +1,8 @@
 # Navigation Project Report
 
-## The Task
-
 ## Introduction
 
-A Unity environment was trained to pick up yellow bananas and avoid blue ones.
+A [Unity ml-agents](https://github.com/Unity-Technologies/ml-agents) modifed environment was trained to pick up yellow bananas and avoid blue ones.
 
 A reward of +1 is provided for collecting a yellow banana, and a reward of -1 is provided for collecting a blue banana.  
 
@@ -15,6 +13,12 @@ The state space has 37 dimensions and contains the agent's velocity, along with 
 - **`3`** - turn right.
 
 The task is episodic, and in order to solve the environment, the agent must get an average score of **+13** over **100** consecutive episodes.
+
+<div style="text-align:center">
+
+![recording](https://user-images.githubusercontent.com/987574/53305718-c4f20f00-3839-11e9-8cc3-d0acb85aedef.gif)
+
+</div>
 
 ## Solution Architecture
 
@@ -121,7 +125,7 @@ The baseline network did appear to be sufficient to satisfy the project requirem
 ### Future Work
 
 The following can be investigated:
-* Degrading learning rate is something easy and necessary to try at the later stages of training
+* Degrading learning rate is something easy and necessary to try at the later stages of training.
 * Adam hyper-parameters may also need some fine-tuning to see if they help with the network being "stuck" at the later stages
 * [Double Q-Network](https://arxiv.org/pdf/1509.06461.pdf). In my experiments (see above) trying to freeze Q targets actually deteriorated perfromance. It would be interesting to see if a Double DQN would help.
 * [Noisy Net](https://arxiv.org/pdf/1706.10295.pdf). Experimenting with noise could be interesting.
