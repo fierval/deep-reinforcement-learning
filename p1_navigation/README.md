@@ -15,6 +15,10 @@ The state space has 37 dimensions and contains the agent's velocity, along with 
 
 The task is episodic, and in order to solve the environment, the agent must get an average score of **+13** over **100** consecutive episodes.
 
+## Video
+
+For the full 30 second video showing a trained agent at work go [here.](https://youtu.be/WK1zNtVoBFA). 
+
 ### Getting Started
 
 1. Download the environment from one of the links below.  You need only select the environment that matches your operating system:
@@ -57,7 +61,3 @@ The graph below shows progression of rewards accumulation in this episode, for t
 
 ![rewards](images/rewards.png)
 </div>
-
-## Video
-
-For the full 30 seconds of video go [here.](https://youtu.be/WK1zNtVoBFA). 
