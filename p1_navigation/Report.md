@@ -52,7 +52,7 @@ The implementation is in `memory.py`. The `ReplayBuffer` class adds the prioriti
 
 The agent code is in `agent.py`. The main method, `learn()` was updated to include prioritized replay as well as frozen Q targets. The latter did not come in useful as it turned out.
 
-One important change for faster convergence was replacing mean squared error with L1: 
+One important change for faster convergence mean squared error was replaced with L1: 
 
 ![error](images/l1error.png)
 
@@ -60,7 +60,7 @@ This is also indicated in the Priorized Experience Replay paper.
 
 ## Experiments
 
-Training was set to run for **1000** episodes, each of the maximul length of **2000** steps (although it appears an episode runs for a maximum of **300** steps).
+Training was set to run for **1000** episodes, each of the maximum length of **2000** steps (although it appears an episode runs for a maximum of **300** steps).
 
 The agent achieved average rewards of **15** (exceeding the solution criterion) over 100 consecutive episodes at episode 340 (starting at 241). The agent was trained further to collect an average reward of **35.6** at episode 800 (starting at 701).
 
@@ -97,12 +97,12 @@ GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
 LR = 5e-4               # learning rate 
 UPDATE_EVERY = 4        # how often to update the network
-UPDATE_TARGET_STEPS = 1 # update target weights interval
+UPDATE_TARGET_STEPS = 1 # update target weights interval 
 ALPHA = 0.8             # priority exponent for prioritized replacement
 BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
 ```
 
-Curiously enough, setting `UPDATE_TARGET_STEPS` to anything more than 1 significantly detereorated convergence: both speed and reward amount. This is very strange and needs some more thought. (This parameter regulated how often Q-target was updated from the running Q). Because of this I am not calling it a "double" network. Parameters were updated at every step like in a regular DQN.
+Curiously enough, setting `UPDATE_TARGET_STEPS` (how often target Q weights are updated from local) to anything more than 1 significantly detereorated convergence: both speed and reward amount. This is a little strange and needs some more thought. Perhaps the fact that we are running batches rather than single entries through the network provides enough separation between local and target networks. Because of this I am not calling it a "double" network. Parameters were updated at every step like in a regular DQN.
 
 While the weights bias-correcting parameter &beta; favored higher initial values there appeared to be performance deterioration towards the end of training as the parameter is linearly annealed to 1. &alpha; parameter also influenced the progression of training, the best combination I could find is shown above.
 
