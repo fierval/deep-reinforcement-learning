@@ -118,7 +118,7 @@ I have experimented with more shallow dueling network. My original implementatio
 
 ### Baseline Architecture.
 
-My baseline was the DQN from the [Lunar Lander](../dqn) excercise. Amazingly enough, it solves this problem without any modifications to the code, but converges slightly slower and did not achieve a moving average reward on a window of 100 episodes of more than **22** on ~800 episodes. Adding duelling architectue moved this number to **30**, adding prioritized replay and changing the loss function to L1 loss - to **35-36**.
+My baseline was the DQN from the [Lunar Lander](../dqn) excercise. Amazingly enough, it solves this problem without any modifications to the code, but converges slightly slower and does not achieve a moving average reward on a window of 100 episodes of more than **22** on ~800 episodes total training. Adding duelling architectue moved the score up to **30**, adding prioritized replay and changing the loss function to L1 loss lead to the final result of **35-36**.
 
 The baseline network did appear to be sufficient to satisfy the project requirement, though.
 
@@ -129,4 +129,4 @@ The following can be investigated:
 * Adam hyper-parameters may also need some fine-tuning to see if they help with the network being "stuck" at the later stages
 * [Double Q-Network](https://arxiv.org/pdf/1509.06461.pdf). In my experiments (see above) trying to freeze Q targets actually deteriorated perfromance. It would be interesting to see if a Double DQN would help.
 * [Noisy Net](https://arxiv.org/pdf/1706.10295.pdf). Experimenting with noise could be interesting.
-* [Rainbow](https://arxiv.org/pdf/1710.02298.pdf). Since this implementation is so close to the Rainbow algorithm already, it seems to be a natural extension to what has been developed: just add noise.
+* [Rainbow](https://arxiv.org/pdf/1710.02298.pdf). Since this implementation is so close to the Rainbow algorithm already, it seems to be a natural extension to what has been developed: just add Noise.
