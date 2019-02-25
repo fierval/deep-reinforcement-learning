@@ -42,7 +42,7 @@ See [Report.md](Report.md) for details.
 * `model.py` - Dueling DQN model implementation (see [paper](https://arxiv.org/pdf/1511.06581.pdf))
 * `memory.py` - Prioritized Experience Replay supporting memory (see [paper](https://arxiv.org/pdf/1511.05952.pdf))
 
-## Finished Agent
+## The Trained Agent
 
 The trained model has achieved an average score of **35.2** over 100 consecutive episodes. The length of training to achieve this score: **800** episodes.
 
