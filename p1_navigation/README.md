@@ -36,6 +36,8 @@ The task is episodic, and in order to solve the environment, the agent must get 
 
 ### Implementation Details
 
+See [Report.md](Report.md) for details.
+
 * `agent.py` - Agent class and hyper-parameters
 * `model.py` - Dueling DQN model implementation (see [paper](https://arxiv.org/pdf/1511.06581.pdf))
 * `memory.py` - Prioritized Experience Replay supporting memory (see [paper](https://arxiv.org/pdf/1511.05952.pdf))
