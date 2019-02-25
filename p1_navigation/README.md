@@ -46,6 +46,8 @@ See [Report.md](Report.md) for details.
 
 The trained model has achieved an average score of **35.6** over 100 consecutive episodes. The length of training to achieve this score: **800** episodes.
 
+The graph below shows progression of rewards accumulation in this episode, for the total reward of **23**.
+
 <div style="text-align:center">
 
 ![recording](https://user-images.githubusercontent.com/987574/53305718-c4f20f00-3839-11e9-8cc3-d0acb85aedef.gif)
@@ -58,4 +60,4 @@ The trained model has achieved an average score of **35.6** over 100 consecutive
 
 ## Video
 
-For the full 30 seconds of video go [here.](https://youtu.be/WK1zNtVoBFA). The graph below shows rewards accumulated in this episode:
+For the full 30 seconds of video go [here.](https://youtu.be/WK1zNtVoBFA). 
