@@ -47,6 +47,9 @@ The trained model has achieved an average score of **35.2** over 100 consecutive
 <div style="text-align:center">
 
 ![recording](https://user-images.githubusercontent.com/987574/53305718-c4f20f00-3839-11e9-8cc3-d0acb85aedef.gif)
+</div>
+
+<div style="text-align:center">
 
 ![rewards](images/rewards.png)
 </div>
