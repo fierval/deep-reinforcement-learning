@@ -5,9 +5,9 @@ This repository contains solutions to Udacity's [Deep Reinforcement Learning Nan
 
 ## Projects
 
-* [Navigation](p1_navigation): In the first project, you will train an agent to collect yellow bananas while avoiding blue bananas. Here is the [Report](p1_navigation/Report.md)
-* [Continuous Control](https://github.com/udacity/deep-reinforcement-learning/tree/master/p2_continuous-control): In the second project, you will train an robotic arm to reach target locations.
-* [Collaboration and Competition](https://github.com/udacity/deep-reinforcement-learning/tree/master/p3_collab-compet): In the third project, you will train a pair of agents to play tennis! 
+- [x] [Navigation](p1_navigation): In the first project, you will train an agent to collect yellow bananas while avoiding blue bananas. Here is the [Report](p1_navigation/Report.md)
+- [ ] [Continuous Control](p2_continuous-control): In the second project, you will train an robotic arm to reach target locations.
+- [ ] [Collaboration and Competition](p3_collab-compet): In the third project, you will train a pair of agents to play tennis! 
 
 ## Setup
 
