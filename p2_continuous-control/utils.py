@@ -32,7 +32,7 @@ def distr_projection(next_distr_v, rewards, dones_mask_t, gamma, device, n_atoms
     '''
 
     next_distr = next_distr_v.data.cpu().numpy()
-    dones_mask = dones_mask_t.cpu().numpy().astype(np.bool)
+    dones_mask = dones_mask_t.astype(np.bool)
     batch_size = len(rewards)
     proj_distr = np.zeros((batch_size, n_atoms), dtype=np.float32)
 

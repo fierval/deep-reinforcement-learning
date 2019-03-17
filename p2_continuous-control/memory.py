@@ -20,6 +20,7 @@ class PrioritizedReplayBuffer:
             alpha (float) < 1: exponent for priorities computation
             beta (float): weight bias correction coefficient
             anneal (int): linear annealing factor for beta
+            clip_action (bool): should we clip action to [-1, 1]
         """
         self.action_size = action_size
         self.memory = deque(maxlen=buffer_size)
@@ -69,7 +70,7 @@ class PrioritizedReplayBuffer:
         weights = torch.from_numpy(weights / np.max(weights)).float().to(self.device)
 
         states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(self.device)
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(self.device)
+        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).float().to(self.device)
         rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(self.device)
         next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)

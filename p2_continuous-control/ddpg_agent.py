@@ -1,11 +1,11 @@
 import numpy as np
 import random
-import copy
+import copy, math
 from collections import namedtuple, deque
 
 from model import DDPGActor, D4PGCritic
 from memory import PrioritizedReplayBuffer
-from utils import distr_projection
+from utils import distr_projection, RewardTracker, TBMeanTracker
 
 from ptan import 
 import torch
@@ -22,7 +22,11 @@ TAU = 1e-3              # for soft update of target parameters
 LR_ACTOR = 1e-4         # learning rate of the actor 
 LR_CRITIC = 1e-4        # learning rate of the critic
 WEIGHT_DECAY = 0.0001   # L2 weight decay
-REWARD_STEPS = 5        # look-ahead steps
+REWARD_STEPS = 1        # TODO: look-ahead steps. For now this can only be set to 1.
+
+ALPHA = 0.8             # priority exponent for prioritized replacement
+BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # support parameters for the parameterized distributed Q-function
@@ -31,27 +35,35 @@ Vmin = -10
 N_ATOMS = 51
 DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 
-class Agent():
-    """Interacts with and learns from the environment."""
+class D4PGAgent():
+    """D4PG agent implementation: https://openreview.net/pdf?id=SyZipzbCb"""
     
-    def __init__(self, num_agents, state_size, action_size, random_seed, log_name):
+    def __init__(self, num_agents, update_fraction, state_size, action_size, random_seed, log_name):
         """Initialize an Agent object.
         
         Params
         ======
             num_agens (int): number of agents generating states/actions
+            update_fraction (float): how often to update
             state_size (int): dimension of each state
             action_size (int): dimension of each action
             random_seed (int): random seed
         """
-        
+
         self.num_agents = num_agents
         self.state_size = state_size
         self.action_size = action_size
+        assert 0 < update_fraction <= 1., "update_fraction should be in (0, 1]"
+
+        update_every = int(math.ceil(update_fraction * num_agents))
+        assert update_every > 0, "update_every too small"
+
+        # indicies along which the arrays of states, actions, etc will be split
+        # so we send them to training every index that occurs in this array
+        self.learning_step_idxs = set(np.arange(num_agents, step_size=update_every))
 
         random.seed(random_seed)
         torch.manual_seed(random_seed)
-
 
         # Actor Network (w/ Target Network)
         self.actor_local = DDPGActor(state_size, action_size).to(device)
@@ -63,21 +75,24 @@ class Agent():
         self.critic_target = D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
-        # Replay memory
-        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
+        # Replay memory with action clipping to -1, 1
+        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, clip_action=True)
     
         # Tensorboard interface
         self.writer = SummaryWriter(comment=f"d4pg-{log_name}")
+        self.tb_tracker = RewardTracker(self.writer, batch_size=10)
 
-    def step(self, state, action, reward, next_state, done):
+    def step(self, states, actions, rewards, next_states, dones):
         """Save experience in replay memory, and use random sample from buffer to learn."""
         # Save experience / reward
-        self.memory.add(state, action, reward, next_state, done)
 
-        # Learn, if enough samples are available in memory
-        if len(self.memory) > BATCH_SIZE:
-            experiences = self.memory.sample()
-            self.learn(experiences, GAMMA)
+        for i, (state, action, reward, next_state, done) in enumerate(zip(states, actions, rewards, next_states, dones)):
+            self.memory.add(state, action, reward, next_state, done)
+
+            # Learn, if enough samples are available in memory
+            if len(self.memory) > BATCH_SIZE and i in self.learning_step_idxs:
+                experiences = self.memory.sample()
+                self.learn(experiences, GAMMA)
 
     def act(self, state):
         """Returns actions for given state as per current policy."""
@@ -103,27 +118,34 @@ class Agent():
         states, actions, rewards, next_states, dones, exp_idxs, weights = experiences
 
         # ---------------------------- update critic ---------------------------- #
-        Q_expected_distribution = self.critic_local(states, actions)
+        Q_expected = self.critic_local(states, actions)
+        
         next_actions = self.actor_target(next_states)
 
-        targets_distribution_next = self.critic_target(next_states, next_actions)
-        Q_target_distribution_next = F.softmax(targets_distribution_next, dim=1)
-        projected_Q_target_distribution_next = distr_projection(Q_expected_distribution, rewards, dones, )
+        target_distribution = self.critic_target(next_states, next_actions)
+        Q_target_distribution = F.softmax(target_distribution, dim=1)
 
+        projected_Q_target_distribution_next = distr_projection(Q_expected, rewards, dones, 
+            gamma ** REWARD_STEPS, device, N_ATOMS, DELTA_Z, Vmin, Vmax)
 
-        # Compute Q targets for current states (y_i)
-        Q_targets = rewards + (gamma * Q_targets_distribution_next * (1 - dones))
-        # Compute critic loss
-        critic_loss = F.mse_loss(Q_expected_distribution, Q_targets)
+        prob_dist = -F.log_softmax(Q_expected, dim=1) * projected_Q_target_distribution_next
+        critic_loss = prob_dist.sum(dim=1).mean()
+
         # Minimize the loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
 
+        self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), frame_idx)
+
         # ---------------------------- update actor ---------------------------- #
         # Compute actor loss
         actions_pred = self.actor_local(states)
-        actor_loss = -self.critic_local(states, actions_pred).mean()
+
+        critic_distr = self.critic_local(states, actions_pred)
+
+        actor_loss = -self.critic_local.distr_to_q(critic_distr).mean()
+
         # Minimize the loss
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
@@ -167,40 +189,3 @@ class OUNoise:
         dx = self.theta * (self.mu - x) + self.sigma * np.array([random.random() for i in range(len(x))])
         self.state = x + dx
         return self.state
-
-class ReplayBuffer:
-    """Fixed-size buffer to store experience tuples."""
-
-    def __init__(self, action_size, buffer_size, batch_size, seed):
-        """Initialize a ReplayBuffer object.
-        Params
-        ======
-            buffer_size (int): maximum size of buffer
-            batch_size (int): size of each training batch
-        """
-        self.action_size = action_size
-        self.memory = deque(maxlen=buffer_size)  # internal memory (deque)
-        self.batch_size = batch_size
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
-        self.seed = random.seed(seed)
-    
-    def add(self, state, action, reward, next_state, done):
-        """Add a new experience to memory."""
-        e = self.experience(state, action, reward, next_state, done)
-        self.memory.append(e)
-    
-    def sample(self):
-        """Randomly sample a batch of experiences from memory."""
-        experiences = random.sample(self.memory, k=self.batch_size)
-
-        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).float().to(device)
-        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
-
-        return (states, actions, rewards, next_states, dones)
-
-    def __len__(self):
-        """Return the current size of internal memory."""
-        return len(self.memory)
