@@ -80,7 +80,8 @@ class D4PGAgent():
     
         # Tensorboard interface
         self.writer = SummaryWriter(comment=f"d4pg-{log_name}")
-        self.tb_tracker = RewardTracker(self.writer, batch_size=10)
+        self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
+        self.step_t = 0
 
     def step(self, states, actions, rewards, next_states, dones):
         """Save experience in replay memory, and use random sample from buffer to learn."""
@@ -88,6 +89,7 @@ class D4PGAgent():
 
         for i, (state, action, reward, next_state, done) in enumerate(zip(states, actions, rewards, next_states, dones)):
             self.memory.add(state, action, reward, next_state, done)
+            self.step_t += 1
 
             # Learn, if enough samples are available in memory
             if len(self.memory) > BATCH_SIZE and i in self.learning_step_idxs:
@@ -136,7 +138,7 @@ class D4PGAgent():
         critic_loss.backward()
         self.critic_optimizer.step()
 
-        self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), frame_idx)
+        self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), self.step_t)
 
         # ---------------------------- update actor ---------------------------- #
         # Compute actor loss
@@ -150,6 +152,8 @@ class D4PGAgent():
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
+
+        self.tb_tracker.track("loss_actor", actor_loss.to("cpu"), self.step_t)
 
         # ----------------------- update target networks ----------------------- #
         self.soft_update(self.critic_local, self.critic_target, TAU)
@@ -167,25 +171,3 @@ class D4PGAgent():
         """
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
-
-class OUNoise:
-    """Ornstein-Uhlenbeck process."""
-
-    def __init__(self, size, seed, mu=0., theta=0.15, sigma=0.2):
-        """Initialize parameters and noise process."""
-        self.mu = mu * np.ones(size)
-        self.theta = theta
-        self.sigma = sigma
-        self.seed = random.seed(seed)
-        self.reset()
-
-    def reset(self):
-        """Reset the internal state (= noise) to mean (mu)."""
-        self.state = copy.copy(self.mu)
-
-    def sample(self):
-        """Update internal state and return it as a noise sample."""
-        x = self.state
-        dx = self.theta * (self.mu - x) + self.sigma * np.array([random.random() for i in range(len(x))])
-        self.state = x + dx
-        return self.state
