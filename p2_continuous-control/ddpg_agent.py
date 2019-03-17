@@ -7,9 +7,13 @@ from model import DDPGActor, D4PGCritic
 from memory import PrioritizedReplayBuffer
 from utils import distr_projection
 
+from ptan import 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+
+# use tensorboard to monitor progress
+from tensorboardX import SummaryWriter
 
 BUFFER_SIZE = int(1e6)  # replay buffer size
 BATCH_SIZE = 128        # minibatch size
@@ -18,7 +22,7 @@ TAU = 1e-3              # for soft update of target parameters
 LR_ACTOR = 1e-4         # learning rate of the actor 
 LR_CRITIC = 1e-4        # learning rate of the critic
 WEIGHT_DECAY = 0.0001   # L2 weight decay
-
+REWARD_STEPS = 5        # look-ahead steps
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # support parameters for the parameterized distributed Q-function
@@ -30,15 +34,18 @@ DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 class Agent():
     """Interacts with and learns from the environment."""
     
-    def __init__(self, state_size, action_size, random_seed):
+    def __init__(self, num_agents, state_size, action_size, random_seed, log_name):
         """Initialize an Agent object.
         
         Params
         ======
+            num_agens (int): number of agents generating states/actions
             state_size (int): dimension of each state
             action_size (int): dimension of each action
             random_seed (int): random seed
         """
+        
+        self.num_agents = num_agents
         self.state_size = state_size
         self.action_size = action_size
 
@@ -59,6 +66,9 @@ class Agent():
         # Replay memory
         self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
     
+        # Tensorboard interface
+        self.writer = SummaryWriter(comment=f"d4pg-{log_name}")
+
     def step(self, state, action, reward, next_state, done):
         """Save experience in replay memory, and use random sample from buffer to learn."""
         # Save experience / reward
@@ -69,43 +79,42 @@ class Agent():
             experiences = self.memory.sample()
             self.learn(experiences, GAMMA)
 
-    def act(self, state, add_noise=False):
+    def act(self, state):
         """Returns actions for given state as per current policy."""
         state = torch.from_numpy(state).float().to(device)
         self.actor_local.eval()
         with torch.no_grad():
             action = self.actor_local(state).cpu().data.numpy()
         self.actor_local.train()
-        if add_noise:
-            action += self.noise.sample()
         return np.clip(action, -1, 1)
 
-    def reset(self):
-        self.noise.reset()
 
     def learn(self, experiences, gamma):
         """Update policy and value parameters using given batch of experience tuples.
-        Q_targets = r + γ * critic_target(next_state, actor_target(next_state))
         where:
             actor_target(state) -> action
-            critic_target(state, action) -> Q-value
+            critic_target(state, action) -> Q-value distribution
 
         Params
         ======
-            experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
+            experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done, experience_idxs_in_buffer, weights) tuples 
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, exp_idxs, weights = experiences
 
         # ---------------------------- update critic ---------------------------- #
-        # Get predicted next-state actions and Q values from target models
-        actions_next = self.actor_target(next_states)
-        Q_targets_next = self.critic_target(next_states, actions_next)
+        Q_expected_distribution = self.critic_local(states, actions)
+        next_actions = self.actor_target(next_states)
+
+        targets_distribution_next = self.critic_target(next_states, next_actions)
+        Q_target_distribution_next = F.softmax(targets_distribution_next, dim=1)
+        projected_Q_target_distribution_next = distr_projection(Q_expected_distribution, rewards, dones, )
+
+
         # Compute Q targets for current states (y_i)
-        Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
+        Q_targets = rewards + (gamma * Q_targets_distribution_next * (1 - dones))
         # Compute critic loss
-        Q_expected = self.critic_local(states, actions)
-        critic_loss = F.mse_loss(Q_expected, Q_targets)
+        critic_loss = F.mse_loss(Q_expected_distribution, Q_targets)
         # Minimize the loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
