@@ -3,7 +3,9 @@ import random
 import copy
 from collections import namedtuple, deque
 
-from model import Actor, Critic
+from model import DDPGActor, D4PGCritic
+from memory import PrioritizedReplayBuffer
+from utils import distr_projection
 
 import torch
 import torch.nn.functional as F
@@ -14,10 +16,16 @@ BATCH_SIZE = 128        # minibatch size
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
 LR_ACTOR = 1e-4         # learning rate of the actor 
-LR_CRITIC = 3e-4        # learning rate of the critic
+LR_CRITIC = 1e-4        # learning rate of the critic
 WEIGHT_DECAY = 0.0001   # L2 weight decay
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+# support parameters for the parameterized distributed Q-function
+Vmax = 10
+Vmin = -10
+N_ATOMS = 51
+DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 
 class Agent():
     """Interacts with and learns from the environment."""
@@ -33,23 +41,23 @@ class Agent():
         """
         self.state_size = state_size
         self.action_size = action_size
-        self.seed = random.seed(random_seed)
+
+        random.seed(random_seed)
+        torch.manual_seed(random_seed)
+
 
         # Actor Network (w/ Target Network)
-        self.actor_local = Actor(state_size, action_size, random_seed).to(device)
-        self.actor_target = Actor(state_size, action_size, random_seed).to(device)
+        self.actor_local = DDPGActor(state_size, action_size).to(device)
+        self.actor_target = DDPGActor(state_size, action_size).to(device)
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
 
         # Critic Network (w/ Target Network)
-        self.critic_local = Critic(state_size, action_size, random_seed).to(device)
-        self.critic_target = Critic(state_size, action_size, random_seed).to(device)
+        self.critic_local = D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax).to(device)
+        self.critic_target = D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
-        # Noise process
-        self.noise = OUNoise(action_size, random_seed)
-
         # Replay memory
-        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
+        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
     
     def step(self, state, action, reward, next_state, done):
         """Save experience in replay memory, and use random sample from buffer to learn."""
@@ -61,7 +69,7 @@ class Agent():
             experiences = self.memory.sample()
             self.learn(experiences, GAMMA)
 
-    def act(self, state, add_noise=True):
+    def act(self, state, add_noise=False):
         """Returns actions for given state as per current policy."""
         state = torch.from_numpy(state).float().to(device)
         self.actor_local.eval()
