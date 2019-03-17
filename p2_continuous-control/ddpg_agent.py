@@ -38,7 +38,7 @@ DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 class D4PGAgent():
     """D4PG agent implementation: https://openreview.net/pdf?id=SyZipzbCb"""
     
-    def __init__(self, num_agents, update_fraction, state_size, action_size, random_seed, log_name):
+    def __init__(self, num_agents, update_fraction, state_size, action_size, random_seed, log_name, anneal_over = 1e5):
         """Initialize an Agent object.
         
         Params
@@ -48,6 +48,8 @@ class D4PGAgent():
             state_size (int): dimension of each state
             action_size (int): dimension of each action
             random_seed (int): random seed
+            log_name (string): tensorboard log suffix
+            anneal_over (int): anneal beta to 1 for priority replacement over these many steps
         """
 
         self.num_agents = num_agents
@@ -74,6 +76,8 @@ class D4PGAgent():
         self.critic_local = D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax).to(device)
         self.critic_target = D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
+
+        self.anneal_beta = (1. - BETA) / anneal_over
 
         # Replay memory with action clipping to -1, 1
         self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, clip_action=True)
@@ -117,26 +121,34 @@ class D4PGAgent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done, experience_idxs_in_buffer, weights) tuples 
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones, exp_idxs, weights = experiences
+        states, actions, rewards, next_states, dones, idxs, weights = experiences
 
         # ---------------------------- update critic ---------------------------- #
-        Q_expected = self.critic_local(states, actions)
+        Q_expected_distribution = self.critic_local(states, actions)
         
         next_actions = self.actor_target(next_states)
 
-        target_distribution = self.critic_target(next_states, next_actions)
-        Q_target_distribution = F.softmax(target_distribution, dim=1)
+        target_distribution_next = self.critic_target(next_states, next_actions)
+        Q_target_distribution_next = F.softmax(target_distribution_next, dim=1)
 
-        projected_Q_target_distribution_next = distr_projection(Q_expected, rewards, dones, 
+        Q_target_distribution = distr_projection(Q_target_distribution_next, rewards, dones, 
             gamma ** REWARD_STEPS, device, N_ATOMS, DELTA_Z, Vmin, Vmax)
 
-        prob_dist = -F.log_softmax(Q_expected, dim=1) * projected_Q_target_distribution_next
+        prob_dist = -F.log_softmax(Q_expected_distribution, dim=1) * Q_target_distribution
         critic_loss = prob_dist.sum(dim=1).mean()
 
         # Minimize the loss
         self.critic_optimizer.zero_grad()
-        critic_loss.backward()
+        (critic_loss * weights).backward()
         self.critic_optimizer.step()
+
+        # update replay weights
+        q_expected = self.critic_local.distr_to_q(Q_expected_distribution)
+        q_target = self.critic_target.distr_to_q(Q_target_distribution)
+        self.memory.anneal_beta(self.anneal_beta)
+
+        updates = torch.abs(q_expected - q_target).cpu().data.squeeze(1).numpy()
+        self.memory.update_priorities(idxs, updates)
 
         self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), self.step_t)
 
