@@ -76,7 +76,7 @@ class D4PGAgent():
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
         # Replay memory with action clipping to -1, 1
-        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA)
+        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
     
         # Tensorboard interface
         self.writer = SummaryWriter(comment="d4pg")
