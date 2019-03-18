@@ -12,7 +12,7 @@ import collections
 import torch
 import torch.nn as nn
 
-def distr_projection(next_distr_v, rewards, dones_mask_t, gamma, device, n_atoms, delta_z, vmin, vmax):
+def distr_projection(next_distr_v, rewards_v, dones_mask_t, gamma, device, n_atoms, delta_z, vmin, vmax):
     '''Projects one parameterized distribution onto another given the target distribution number of intervals
         min/max values and detla (interval size)
     
@@ -32,7 +32,9 @@ def distr_projection(next_distr_v, rewards, dones_mask_t, gamma, device, n_atoms
     '''
 
     next_distr = next_distr_v.data.cpu().numpy()
-    dones_mask = dones_mask_t.astype(np.bool)
+    dones_mask = dones_mask_t.data.cpu().numpy().astype(np.bool)
+    rewards = rewards_v.data.cpu().numpy()
+
     batch_size = len(rewards)
     proj_distr = np.zeros((batch_size, n_atoms), dtype=np.float32)
 
@@ -81,9 +83,9 @@ class TBMeanTracker:
         assert writer is not None
         self.writer = writer
         self.batch_size = batch_size
+        self._batches = collections.defaultdict(list)
 
     def __enter__(self):
-        self._batches = collections.defaultdict(list)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -119,11 +121,11 @@ class TBMeanTracker:
 class RewardTracker:
     def __init__(self, writer):
         self.writer = writer
-
-    def __enter__(self):
         self.ts = time.time()
         self.ts_frame = 0
         self.total_rewards = []
+
+    def __enter__(self):
         return self
 
     def __exit__(self, *args):

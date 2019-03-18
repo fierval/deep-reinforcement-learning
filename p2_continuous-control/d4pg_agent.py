@@ -121,6 +121,9 @@ class D4PGAgent():
         """
         states, actions, rewards, next_states, dones, idxs, weights = experiences
 
+        rewards = rewards.squeeze(dim = 1)
+        dones = dones.squeeze(dim = 1)
+
         # ---------------------------- update critic ---------------------------- #
         Q_expected_distribution = self.critic_local(states, actions)
         
@@ -137,7 +140,7 @@ class D4PGAgent():
 
         # Minimize the loss
         self.critic_optimizer.zero_grad()
-        (critic_loss * weights).backward()
+        (critic_loss * weights).mean().backward()
         self.critic_optimizer.step()
 
         # update replay weights
