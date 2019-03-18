@@ -100,13 +100,15 @@ class D4PGAgent():
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
 
-    def act(self, state):
+    def act(self, states):
         """Returns actions for given state as per current policy."""
-        state = torch.from_numpy(state).float().to(device)
+        states = torch.from_numpy(states).float().to(device)
+
         self.actor_local.eval()
         with torch.no_grad():
-            action = self.actor_local(state).cpu().data.numpy()
+            actions = self.actor_local(states).cpu().data.numpy()
         self.actor_local.train()
+
         return np.clip(action, -1, 1)
 
 
@@ -183,3 +185,71 @@ class D4PGAgent():
         """
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
+
+if __name__ == '__main__':
+    from unityagents import UnityEnvironment  
+
+    LOG_NAME = "1"
+    MAX_T = 1000
+    N_EPISODES = 2000
+    
+    env = UnityEnvironment(file_name='Reacher_Linux/Reacher.x86_64')
+
+    # get the default brain
+    brain_name = env.brain_names[0]
+    brain = env.brains[brain_name]
+
+    env_info = env.reset(train_mode=True, )[brain_name]
+
+    # number of agents
+    num_agents = len(env_info.agents)
+    print('Number of agents:', num_agents)
+
+    # size of each action
+    action_size = brain.vector_action_space_size
+    print('Size of each action:', action_size)
+
+    # examine the state space 
+    states = env_info.vector_observations
+    state_size = states.shape[1]
+    print('There are {} agents. Each observes a state with length: {}'.format(states.shape[0], state_size))
+    print('The state for the first agent looks like:', states[0])
+    
+    n_episodes = N_EPISODES
+    max_t = MAX_T
+
+    agent = D4PGAgent(states.shape[0], 0.5, state_size, action_size, 1000, LOG_NAME)
+    max_score = -np.Inf
+
+    # tracks all the mean rewards etc
+    reward_tracker = RewardTracker(agent.writer, num_agents, n_episodes)
+
+    for i_episode in range(1, n_episodes+1):
+        states = env.reset()
+        scores = np.zeros(num_agents)
+
+        for t in range(max_t):
+            actions = agent.act(states)
+
+            env_info = env.step(actions)[brain_name]           # send all actions to tne environment
+            next_states = env_info.vector_observations         # get next state (for each agent)
+            rewards = env_info.rewards                         # get reward (for each agent)
+            dones = env_info.local_done                        # see if episode finished
+            states = next_states                               # roll over states to next time step
+            agent.step(states, actions, rewards, next_states, dones)
+            states = next_states
+
+            scores += rewards
+
+            if np.any(dones):
+                break
+
+        # does all the right things with reward tracking
+        scores = np.mean(scores)
+        reward_tracker.reward(scores, agent.step_t)
+        score = np.mean(scores)
+
+        if max_score < score:
+            torch.save(agent.actor_local.state_dict(), f'checkpoint_actor_{score:.03f}.pth')
+            torch.save(agent.critic_local.state_dict(), f'checkpoint_critic_{score:.03f}.pth')
+            max_score = score
