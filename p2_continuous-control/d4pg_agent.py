@@ -14,14 +14,15 @@ import torch.optim as optim
 # use tensorboard to monitor progress
 from tensorboardX import SummaryWriter
 
-BUFFER_SIZE = int(1e6)  # replay buffer size
-BATCH_SIZE = 128        # minibatch size
-GAMMA = 0.99            # discount factor
-TAU = 1e-3              # for soft update of target parameters
-LR_ACTOR = 1e-4         # learning rate of the actor 
-LR_CRITIC = 1e-4        # learning rate of the critic
-WEIGHT_DECAY = 0.0001   # L2 weight decay
-REWARD_STEPS = 1        # TODO: look-ahead steps. For now this can only be set to 1.
+BUFFER_SIZE = int(1e6)      # replay buffer size
+INITIAL_BUFFER_FILL = 1e4   # how many entries should go to the buffer before training starts
+BATCH_SIZE = 128            # minibatch size
+GAMMA = 0.99                # discount factor
+TAU = 1e-3                  # for soft update of target parameters
+LR_ACTOR = 1e-4             # learning rate of the actor 
+LR_CRITIC = 1e-4            # learning rate of the critic
+WEIGHT_DECAY = 0.0001       # L2 weight decay
+REWARD_STEPS = 1            # TODO: look-ahead steps. For now this can only be set to 1.
 
 ALPHA = 0.8             # priority exponent for prioritized replacement
 BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
@@ -92,7 +93,10 @@ class D4PGAgent():
             self.step_t += 1
 
             # Learn, if enough samples are available in memory
-            if len(self.memory) > BATCH_SIZE and i in self.learning_step_idxs:
+            if len(self.memory) > BATCH_SIZE \
+                and self.step_t >= INITIAL_BUFFER_FILL \
+                and i in self.learning_step_idxs:
+
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
 
@@ -190,7 +194,9 @@ if __name__ == '__main__':
     LOG_NAME = "1"
     MAX_T = 1000
     N_EPISODES = 2000
-    
+    SOLVED_SCORE = 30
+    MEAN_WINDOW = 100
+
     env = UnityEnvironment(file_name='p2_continuous-control/Reacher_Linux/Reacher.x86_64')
 
     # get the default brain
@@ -218,9 +224,10 @@ if __name__ == '__main__':
 
     agent = D4PGAgent(states.shape[0], 0.5, state_size, action_size, 1000)
     max_score = -np.Inf
+    solved_episode = -np.Inf
 
     # tracks all the mean rewards etc
-    with RewardTracker(agent.writer) as reward_tracker:
+    with RewardTracker(agent.writer, MEAN_WINDOW) as reward_tracker:
 
         for i_episode in range(1, n_episodes+1):
             env_info = env.reset(train_mode=True)[brain_name]
@@ -245,7 +252,7 @@ if __name__ == '__main__':
 
             # does all the right things with reward tracking
             scores = np.mean(scores)
-            reward_tracker.reward(scores, agent.step_t)
+            mean_reward = reward_tracker.reward(scores, agent.step_t)
 
             score = np.mean(scores)
 
@@ -253,4 +260,8 @@ if __name__ == '__main__':
                 torch.save(agent.actor_local.state_dict(), f'checkpoint_actor_{score:.03f}.pth')
                 torch.save(agent.critic_local.state_dict(), f'checkpoint_critic_{score:.03f}.pth')
                 max_score = score
+
+                if mean_reward is not None and mean_reward >=  SOLVED_SCORE:
+                    solved_episode = i_episode - MEAN_WINDOW - 1
+                    print(f"Solved in {solved_episode} episodes")
     env.close()

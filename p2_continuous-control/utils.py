@@ -119,11 +119,12 @@ class TBMeanTracker:
             data.clear()
 
 class RewardTracker:
-    def __init__(self, writer):
+    def __init__(self, writer, mean_window = 100):
         self.writer = writer
         self.ts = time.time()
         self.ts_frame = 0
         self.total_rewards = []
+        self.mean_window = mean_window
 
     def __enter__(self):
         return self
@@ -136,7 +137,7 @@ class RewardTracker:
         speed = (frame - self.ts_frame) / (time.time() - self.ts)
         self.ts_frame = frame
         self.ts = time.time()
-        mean_reward = np.mean(self.total_rewards[-100:])
+        mean_reward = np.mean(self.total_rewards[-self.mean_window :])
         epsilon_str = "" if epsilon is None else ", eps %.2f" % epsilon
         print("%d: done %d episodes, mean reward %.3f, speed %.2f f/s%s" % (
             frame, len(self.total_rewards), mean_reward, speed, epsilon_str
