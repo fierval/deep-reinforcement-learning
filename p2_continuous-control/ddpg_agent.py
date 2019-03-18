@@ -222,34 +222,35 @@ if __name__ == '__main__':
     max_score = -np.Inf
 
     # tracks all the mean rewards etc
-    reward_tracker = RewardTracker(agent.writer, num_agents, n_episodes)
+    with RewardTracker(agent.writer, num_agents, n_episodes) as reward_tracker:
 
-    for i_episode in range(1, n_episodes+1):
-        states = env.reset()
-        scores = np.zeros(num_agents)
+        for i_episode in range(1, n_episodes+1):
+            states = env.reset()
+            scores = np.zeros(num_agents)
 
-        for t in range(max_t):
-            actions = agent.act(states)
+            for t in range(max_t):
+                actions = agent.act(states)
 
-            env_info = env.step(actions)[brain_name]           # send all actions to tne environment
-            next_states = env_info.vector_observations         # get next state (for each agent)
-            rewards = env_info.rewards                         # get reward (for each agent)
-            dones = env_info.local_done                        # see if episode finished
-            states = next_states                               # roll over states to next time step
-            agent.step(states, actions, rewards, next_states, dones)
-            states = next_states
+                env_info = env.step(actions)[brain_name]           # send all actions to tne environment
+                next_states = env_info.vector_observations         # get next state (for each agent)
+                rewards = env_info.rewards                         # get reward (for each agent)
+                dones = env_info.local_done                        # see if episode finished
+                states = next_states                               # roll over states to next time step
+                agent.step(states, actions, rewards, next_states, dones)
+                states = next_states
 
-            scores += rewards
+                scores += rewards
 
-            if np.any(dones):
-                break
+                if np.any(dones):
+                    break
 
-        # does all the right things with reward tracking
-        scores = np.mean(scores)
-        reward_tracker.reward(scores, agent.step_t)
-        score = np.mean(scores)
+            # does all the right things with reward tracking
+            scores = np.mean(scores)
+            reward_tracker.reward(scores, agent.step_t)
 
-        if max_score < score:
-            torch.save(agent.actor_local.state_dict(), f'checkpoint_actor_{score:.03f}.pth')
-            torch.save(agent.critic_local.state_dict(), f'checkpoint_critic_{score:.03f}.pth')
-            max_score = score
+            score = np.mean(scores)
+
+            if max_score < score:
+                torch.save(agent.actor_local.state_dict(), f'checkpoint_actor_{score:.03f}.pth')
+                torch.save(agent.critic_local.state_dict(), f'checkpoint_critic_{score:.03f}.pth')
+                max_score = score
