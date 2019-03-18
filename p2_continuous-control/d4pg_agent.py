@@ -213,7 +213,7 @@ if __name__ == '__main__':
     n_episodes = N_EPISODES
     max_t = MAX_T
 
-    agent = D4PGAgent(states.shape[0], 0.5, state_size, action_size, 1000, LOG_NAME)
+    agent = D4PGAgent(states.shape[0], 0.5, state_size, action_size, 1000)
     max_score = -np.Inf
 
     # tracks all the mean rewards etc
@@ -231,8 +231,8 @@ if __name__ == '__main__':
                 next_states = env_info.vector_observations         # get next state (for each agent)
                 rewards = env_info.rewards                         # get reward (for each agent)
                 dones = env_info.local_done                        # see if episode finished
-                states = next_states                               # roll over states to next time step
                 agent.step(states, actions, rewards, next_states, dones)
+
                 states = next_states
 
                 scores += rewards
