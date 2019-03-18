@@ -7,7 +7,6 @@ from model import DDPGActor, D4PGCritic
 from memory import PrioritizedReplayBuffer
 from utils import distr_projection, RewardTracker, TBMeanTracker
 
-from ptan import 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -62,7 +61,7 @@ class D4PGAgent():
 
         # indicies along which the arrays of states, actions, etc will be split
         # so we send them to training every index that occurs in this array
-        self.learning_step_idxs = set(np.arange(num_agents, step_size=update_every))
+        self.learning_step_idxs = set(np.arange(num_agents, step=update_every))
 
         random.seed(random_seed)
         torch.manual_seed(random_seed)
@@ -80,7 +79,7 @@ class D4PGAgent():
         self.anneal_beta = (1. - BETA) / anneal_over
 
         # Replay memory with action clipping to -1, 1
-        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, clip_action=True)
+        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA)
     
         # Tensorboard interface
         self.writer = SummaryWriter(comment=f"d4pg-{log_name}")
@@ -109,7 +108,7 @@ class D4PGAgent():
             actions = self.actor_local(states).cpu().data.numpy()
         self.actor_local.train()
 
-        return np.clip(action, -1, 1)
+        return np.clip(actions, -1, 1)
 
 
     def learn(self, experiences, gamma):
@@ -193,7 +192,7 @@ if __name__ == '__main__':
     MAX_T = 1000
     N_EPISODES = 2000
     
-    env = UnityEnvironment(file_name='Reacher_Linux/Reacher.x86_64')
+    env = UnityEnvironment(file_name='p2_continuous-control/Reacher_Linux/Reacher.x86_64')
 
     # get the default brain
     brain_name = env.brain_names[0]
@@ -222,10 +221,11 @@ if __name__ == '__main__':
     max_score = -np.Inf
 
     # tracks all the mean rewards etc
-    with RewardTracker(agent.writer, num_agents, n_episodes) as reward_tracker:
+    with RewardTracker(agent.writer) as reward_tracker:
 
         for i_episode in range(1, n_episodes+1):
-            states = env.reset()
+            env_info = env.reset(train_mode=True)[brain_name]
+            states = env_info.vector_observations
             scores = np.zeros(num_agents)
 
             for t in range(max_t):
@@ -254,3 +254,4 @@ if __name__ == '__main__':
                 torch.save(agent.actor_local.state_dict(), f'checkpoint_actor_{score:.03f}.pth')
                 torch.save(agent.critic_local.state_dict(), f'checkpoint_critic_{score:.03f}.pth')
                 max_score = score
+    env.close()
