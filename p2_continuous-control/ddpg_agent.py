@@ -12,7 +12,11 @@ import torch.optim as optim
 from memory import ReplayBuffer
 from utils import *
 
+# use tensorboard to monitor progress
+from tensorboardX import SummaryWriter
+
 BUFFER_SIZE = int(1e5)  # replay buffer size
+INITIAL_BUFFER_FILL = 5e3   # how many entries should go to the buffer before training starts
 BATCH_SIZE = 128        # minibatch size
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
@@ -59,15 +63,20 @@ class Agent():
         self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
         self.step_t = 0
 
-    def step(self, state, action, reward, next_state, done):
+    def step(self, states, actions, rewards, next_states, dones):
         """Save experience in replay memory, and use random sample from buffer to learn."""
         # Save experience / reward
-        self.memory.add(state, action, reward, next_state, done)
 
-        # Learn, if enough samples are available in memory
-        if len(self.memory) > BATCH_SIZE:
-            experiences = self.memory.sample()
-            self.learn(experiences, GAMMA)
+        for i, (state, action, reward, next_state, done) in enumerate(zip(states, actions, rewards, next_states, dones)):
+            self.memory.add(state, action, reward, next_state, done)
+            self.step_t += 1
+
+            # Learn, if enough samples are available in memory
+            if len(self.memory) > BATCH_SIZE \
+                and self.step_t >= INITIAL_BUFFER_FILL:
+
+                experiences = self.memory.sample()
+                self.learn(experiences, GAMMA)
 
     def act(self, state, add_noise=True):
         """Returns actions for given state as per current policy."""
@@ -96,6 +105,9 @@ class Agent():
             gamma (float): discount factor
         """
         states, actions, rewards, next_states, dones = experiences
+
+        rewards = rewards.squeeze(dim = 1)
+        dones = dones.squeeze(dim = 1)
 
         # ---------------------------- update critic ---------------------------- #
         # Get predicted next-state actions and Q values from target models

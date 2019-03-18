@@ -44,7 +44,8 @@ if __name__ == '__main__':
     n_episodes = N_EPISODES
     max_t = MAX_T
 
-    agent = D4PGAgent(num_agents, 1, state_size, action_size, 1000)
+#    agent = D4PGAgent(num_agents, 1, state_size, action_size, 1000)
+    agent = Agent(state_size, action_size, 1000)
     max_score = -np.Inf
     solved_episode = -np.Inf
 
