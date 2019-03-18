@@ -8,7 +8,7 @@ class PrioritizedReplayBuffer:
     Implements prioritized experience replay
     """
 
-    def __init__(self, action_size, buffer_size, batch_size, seed, alpha, beta):
+    def __init__(self, action_size, buffer_size, batch_size, seed, alpha, beta, anneal_over):
         """Initialize a ReplayBuffer object.
 
         Params
@@ -30,6 +30,7 @@ class PrioritizedReplayBuffer:
         self.alpha = alpha
         self.beta = beta
 
+        self.anneal = (1. - beta) / anneal_over
         self.buffer_size = buffer_size
 
         self.batch_size = batch_size
@@ -75,14 +76,16 @@ class PrioritizedReplayBuffer:
         next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
 
+        self.anneal_beta()
+
         return (states, actions, rewards, next_states, dones, experience_idxs, weights)
 
     def update_priorities(self, idxs, priorities):
        
         self.priorities[idxs] = priorities
 
-    def anneal_beta(self, anneal):
-        self.beta = min(self.beta + anneal, 1.)
+    def anneal_beta(self):
+        self.beta = min(self.beta + self.anneal, 1.)
 
     def __len__(self):
         """Return the current size of internal memory."""

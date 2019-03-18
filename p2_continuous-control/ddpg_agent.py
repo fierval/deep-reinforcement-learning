@@ -25,6 +25,7 @@ REWARD_STEPS = 1        # TODO: look-ahead steps. For now this can only be set t
 
 ALPHA = 0.8             # priority exponent for prioritized replacement
 BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
+ANNEAL_OVER = 1e-5            # beta annealing for prioritized memory replay
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -37,7 +38,7 @@ DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 class D4PGAgent():
     """D4PG agent implementation: https://openreview.net/pdf?id=SyZipzbCb"""
     
-    def __init__(self, num_agents, update_fraction, state_size, action_size, random_seed, log_name, anneal_over = 1e5):
+    def __init__(self, num_agents, update_fraction, state_size, action_size, random_seed):
         """Initialize an Agent object.
         
         Params
@@ -47,8 +48,6 @@ class D4PGAgent():
             state_size (int): dimension of each state
             action_size (int): dimension of each action
             random_seed (int): random seed
-            log_name (string): tensorboard log suffix
-            anneal_over (int): anneal beta to 1 for priority replacement over these many steps
         """
 
         self.num_agents = num_agents
@@ -76,13 +75,11 @@ class D4PGAgent():
         self.critic_target = D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
-        self.anneal_beta = (1. - BETA) / anneal_over
-
         # Replay memory with action clipping to -1, 1
         self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA)
     
         # Tensorboard interface
-        self.writer = SummaryWriter(comment=f"d4pg-{log_name}")
+        self.writer = SummaryWriter(comment="d4pg")
         self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
         self.step_t = 0
 
@@ -146,7 +143,6 @@ class D4PGAgent():
         # update replay weights
         q_expected = self.critic_local.distr_to_q(Q_expected_distribution)
         q_target = self.critic_target.distr_to_q(Q_target_distribution)
-        self.memory.anneal_beta(self.anneal_beta)
 
         updates = torch.abs(q_expected - q_target).cpu().data.squeeze(1).numpy()
         self.memory.update_priorities(idxs, updates)
