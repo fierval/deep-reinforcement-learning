@@ -139,8 +139,8 @@ class RewardTracker:
         self.ts = time.time()
         mean_reward = np.mean(self.total_rewards[-self.mean_window :])
         epsilon_str = "" if epsilon is None else ", eps %.2f" % epsilon
-        print("%d: done %d episodes, mean reward %.3f, speed %.2f f/s%s" % (
-            frame, len(self.total_rewards), mean_reward, speed, epsilon_str
+        print("%d: reward %.3f, mean reward %.3f, speed %.2f f/s%s" % (
+            len(self.total_rewards), reward, mean_reward, speed, epsilon_str
         ))
         sys.stdout.flush()
         if epsilon is not None:

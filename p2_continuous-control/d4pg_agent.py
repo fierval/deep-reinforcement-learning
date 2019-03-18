@@ -4,7 +4,7 @@ import copy, math
 from collections import namedtuple, deque
 
 from model import DDPGActor, D4PGCritic
-from memory import PrioritizedReplayBuffer
+from memory import PrioritizedReplayBuffer, ReplayBuffer
 from utils import distr_projection, RewardTracker, TBMeanTracker
 
 import torch
@@ -14,19 +14,23 @@ import torch.optim as optim
 # use tensorboard to monitor progress
 from tensorboardX import SummaryWriter
 
-BUFFER_SIZE = int(1e6)      # replay buffer size
-INITIAL_BUFFER_FILL = 1e4   # how many entries should go to the buffer before training starts
-BATCH_SIZE = 128            # minibatch size
+BUFFER_SIZE = int(1e5)      # replay buffer size
+INITIAL_BUFFER_FILL = 5e3   # how many entries should go to the buffer before training starts
+BATCH_SIZE = 64            # minibatch size
 GAMMA = 0.99                # discount factor
 TAU = 1e-3                  # for soft update of target parameters
 LR_ACTOR = 1e-4             # learning rate of the actor 
-LR_CRITIC = 1e-4            # learning rate of the critic
-WEIGHT_DECAY = 0.0001       # L2 weight decay
+LR_CRITIC = 3e-4            # learning rate of the critic
+WEIGHT_DECAY = 1e-5       # L2 weight decay
 REWARD_STEPS = 1            # TODO: look-ahead steps. For now this can only be set to 1.
 
 ALPHA = 0.8             # priority exponent for prioritized replacement
 BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
-ANNEAL_OVER = 1e-5            # beta annealing for prioritized memory replay
+
+MAX_T = 1000
+N_EPISODES = 2000
+
+ANNEAL_OVER = 1. / (MAX_T * N_EPISODES * 10)        # beta annealing for prioritized memory replay
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -77,7 +81,8 @@ class D4PGAgent():
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
         # Replay memory with action clipping to -1, 1
-        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
+        #self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
+        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
     
         # Tensorboard interface
         self.writer = SummaryWriter(comment="-d4pg")
@@ -123,7 +128,8 @@ class D4PGAgent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done, experience_idxs_in_buffer, weights) tuples 
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones, idxs, weights = experiences
+        #states, actions, rewards, next_states, dones, idxs, weights = experiences
+        states, actions, rewards, next_states, dones = experiences
 
         rewards = rewards.squeeze(dim = 1)
         dones = dones.squeeze(dim = 1)
@@ -133,7 +139,7 @@ class D4PGAgent():
         
         next_actions = self.actor_target(next_states)
 
-        target_distribution_next = self.critic_target(next_states, next_actions)
+        target_distribution_next = self.critic_target(next_states, next_actions).detach()
         Q_target_distribution_next = F.softmax(target_distribution_next, dim=1)
 
         Q_target_distribution = distr_projection(Q_target_distribution_next, rewards, dones, 
@@ -144,15 +150,16 @@ class D4PGAgent():
 
         # Minimize the loss
         self.critic_optimizer.zero_grad()
-        (critic_loss * weights).mean().backward()
+        #(critic_loss * weights).mean().backward()
+        critic_loss.backward()
         self.critic_optimizer.step()
 
         # update replay weights
-        q_expected = self.critic_local.distr_to_q(Q_expected_distribution)
-        q_target = self.critic_target.distr_to_q(Q_target_distribution)
+        # q_expected = self.critic_local.distr_to_q(Q_expected_distribution)
+        # q_target = self.critic_target.distr_to_q(Q_target_distribution)
 
-        updates = torch.abs(q_expected - q_target).cpu().data.squeeze(1).numpy()
-        self.memory.update_priorities(idxs, updates)
+        # updates = torch.abs(q_expected - q_target).cpu().data.squeeze(1).numpy()
+        #self.memory.update_priorities(idxs, updates)
 
         self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), self.step_t)
 
@@ -188,79 +195,3 @@ class D4PGAgent():
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
 
-if __name__ == '__main__':
-    from unityagents import UnityEnvironment  
-
-    MAX_T = 1000
-    N_EPISODES = 2000
-    SOLVED_SCORE = 30
-    MEAN_WINDOW = 100
-
-    env = UnityEnvironment(file_name='p2_continuous-control/Reacher_Linux/Reacher.x86_64')
-
-    # get the default brain
-    brain_name = env.brain_names[0]
-    brain = env.brains[brain_name]
-
-    env_info = env.reset(train_mode=True, )[brain_name]
-
-    # number of agents
-    num_agents = len(env_info.agents)
-    print('Number of agents:', num_agents)
-
-    # size of each action
-    action_size = brain.vector_action_space_size
-    print('Size of each action:', action_size)
-
-    # examine the state space 
-    states = env_info.vector_observations
-    state_size = states.shape[1]
-    print('There are {} agents. Each observes a state with length: {}'.format(states.shape[0], state_size))
-    print('The state for the first agent looks like:', states[0])
-    
-    n_episodes = N_EPISODES
-    max_t = MAX_T
-
-    agent = D4PGAgent(states.shape[0], 0.5, state_size, action_size, 1000)
-    max_score = -np.Inf
-    solved_episode = -np.Inf
-
-    # tracks all the mean rewards etc
-    with RewardTracker(agent.writer, MEAN_WINDOW) as reward_tracker:
-
-        for i_episode in range(1, n_episodes+1):
-            env_info = env.reset(train_mode=True)[brain_name]
-            states = env_info.vector_observations
-            scores = np.zeros(num_agents)
-
-            for t in range(max_t):
-                actions = agent.act(states)
-
-                env_info = env.step(actions)[brain_name]           # send all actions to tne environment
-                next_states = env_info.vector_observations         # get next state (for each agent)
-                rewards = env_info.rewards                         # get reward (for each agent)
-                dones = env_info.local_done                        # see if episode finished
-                agent.step(states, actions, rewards, next_states, dones)
-
-                states = next_states
-
-                scores += rewards
-
-                if np.any(dones):
-                    break
-
-            # does all the right things with reward tracking
-            scores = np.mean(scores)
-            mean_reward = reward_tracker.reward(scores, agent.step_t)
-
-            score = np.mean(scores)
-
-            if max_score < score:
-                torch.save(agent.actor_local.state_dict(), f'checkpoint_actor_{score:.03f}.pth')
-                torch.save(agent.critic_local.state_dict(), f'checkpoint_critic_{score:.03f}.pth')
-                max_score = score
-
-                if mean_reward is not None and mean_reward >=  SOLVED_SCORE:
-                    solved_episode = i_episode - MEAN_WINDOW - 1
-                    print(f"Solved in {solved_episode} episodes")
-    env.close()
