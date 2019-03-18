@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from memory import ReplayBuffer
+from memory import ReplayBuffer, PrioritizedReplayBuffer
 from utils import *
 
 # use tensorboard to monitor progress
@@ -25,6 +25,15 @@ LR_CRITIC = 1e-3        # learning rate of the critic
 WEIGHT_DECAY = 0        # L2 weight decay
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+ALPHA = 0.8             # priority exponent for prioritized replacement
+BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
+
+MAX_T = 1000
+N_EPISODES = 2000
+
+ANNEAL_OVER = 1. / (MAX_T * N_EPISODES * 10)        # beta annealing for prioritized memory replay
+
 
 class Agent():
     """Interacts with and learns from the environment."""
@@ -56,7 +65,8 @@ class Agent():
         self.noise = OUNoise(action_size, random_seed)
 
         # Replay memory
-        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
+        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
+        #self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
     
         # Tensorboard interface
         self.writer = SummaryWriter(comment="-d4pg")
@@ -104,15 +114,16 @@ class Agent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, idxs, weights = experiences
+        #states, actions, rewards, next_states, dones = experiences
 
-        rewards = rewards.squeeze(dim = 1)
-        dones = dones.squeeze(dim = 1)
+        #rewards = rewards.squeeze(dim = 1)
+        #dones = dones.squeeze(dim = 1)
 
         # ---------------------------- update critic ---------------------------- #
         # Get predicted next-state actions and Q values from target models
         actions_next = self.actor_target(next_states)
-        Q_targets_next = self.critic_target(next_states, actions_next)
+        Q_targets_next = self.critic_target(next_states, actions_next).detach()
         # Compute Q targets for current states (y_i)
         Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
         # Compute critic loss
@@ -120,8 +131,12 @@ class Agent():
         critic_loss = F.mse_loss(Q_expected, Q_targets)
         # Minimize the loss
         self.critic_optimizer.zero_grad()
-        critic_loss.backward()
+
+        (critic_loss * weights).mean().backward()
         self.critic_optimizer.step()
+
+        updates = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
+        self.memory.update_priorities(idxs, updates)
 
         self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), self.step_t)
 
