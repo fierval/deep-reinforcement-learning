@@ -80,7 +80,7 @@ class D4PGAgent():
         self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
     
         # Tensorboard interface
-        self.writer = SummaryWriter(comment="d4pg")
+        self.writer = SummaryWriter(comment="-d4pg")
         self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
         self.step_t = 0
 
@@ -191,7 +191,6 @@ class D4PGAgent():
 if __name__ == '__main__':
     from unityagents import UnityEnvironment  
 
-    LOG_NAME = "1"
     MAX_T = 1000
     N_EPISODES = 2000
     SOLVED_SCORE = 30
