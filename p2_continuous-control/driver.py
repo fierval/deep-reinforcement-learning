@@ -19,7 +19,7 @@ if __name__ == '__main__':
     SOLVED_SCORE = 30
     MEAN_WINDOW = 100
 
-    env = UnityEnvironment(file_name='p2_continuous-control/Reacher_Linux_1/Reacher.x86_64')
+    env = UnityEnvironment(file_name='p2_continuous-control/Reacher_Windows_20/Reacher')
 
     # get the default brain
     brain_name = env.brain_names[0]
@@ -44,8 +44,8 @@ if __name__ == '__main__':
     n_episodes = N_EPISODES
     max_t = MAX_T
 
-#    agent = D4PGAgent(num_agents, 1, state_size, action_size, 1000)
-    agent = Agent(state_size, action_size, 1000)
+    #agent = D4PGAgent(num_agents, 0.5, state_size, action_size, 1)
+    agent = Agent(num_agents, state_size, action_size, 1)
     max_score = -np.Inf
     solved_episode = -np.Inf
 
@@ -80,11 +80,15 @@ if __name__ == '__main__':
             score = np.mean(scores)
 
             if max_score < score:
-                torch.save(agent.actor_local.state_dict(), f'/home/boris/git/udacity/drl/p2_continuous-control/checkpoint_actor_{score:.03f}.pth')
-                torch.save(agent.critic_local.state_dict(), f'/home/boris/git/udacity/drl/p2_continuous-control/checkpoint_critic_{score:.03f}.pth')
+                if max_score >= SOLVED_SCORE:
+                    torch.save(agent.actor_local.state_dict(), f'p2_continuous-control/checkpoint_actor_{score:.03f}.pth')
+                    torch.save(agent.critic_local.state_dict(), f'p2_continuous-control/checkpoint_critic_{score:.03f}.pth')
+
                 max_score = score
 
                 if mean_reward is not None and mean_reward >=  SOLVED_SCORE:
                     solved_episode = i_episode - MEAN_WINDOW - 1
                     print(f"Solved in {solved_episode} episodes")
+
+                    break
     env.close()

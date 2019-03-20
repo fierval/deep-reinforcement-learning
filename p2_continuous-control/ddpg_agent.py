@@ -15,14 +15,19 @@ from utils import *
 # use tensorboard to monitor progress
 from tensorboardX import SummaryWriter
 
-BUFFER_SIZE = int(1e5)  # replay buffer size
-INITIAL_BUFFER_FILL = 5e3   # how many entries should go to the buffer before training starts
+BUFFER_SIZE = int(1e6)  # replay buffer size
+INITIAL_BUFFER_FILL = 128   # how many entries should go to the buffer before training starts
 BATCH_SIZE = 128        # minibatch size
 GAMMA = 0.99            # discount factor
-TAU = 1e-3              # for soft update of target parameters
-LR_ACTOR = 1e-4         # learning rate of the actor 
+TAU = 1e-2              # for soft update of target parameters
+LR_ACTOR = 1e-3         # learning rate of the actor 
 LR_CRITIC = 1e-3        # learning rate of the critic
 WEIGHT_DECAY = 0        # L2 weight decay
+OU_SIGMA = 0.2          # Ornstein-Uhlenbeck noise parameter
+OU_THETA = 0.15         # Ornstein-Uhlenbeck noise parameter
+EPSILON = 1.0           # explore->exploit noise process added to act step
+EPSILON_DECAY = 1e-6    # decay rate for noise process
+LEARN_NUM = 10
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -32,13 +37,13 @@ BETA = 0.7              # initial beta (annealed to 1) for prioritized replaceme
 MAX_T = 1000
 N_EPISODES = 2000
 
-ANNEAL_OVER = 1. / (MAX_T * N_EPISODES * 10)        # beta annealing for prioritized memory replay
+ANNEAL_OVER = 1. / (MAX_T * N_EPISODES)        # beta annealing for prioritized memory replay
 
 
 class Agent():
     """Interacts with and learns from the environment."""
     
-    def __init__(self, state_size, action_size, random_seed):
+    def __init__(self, num_agents, state_size, action_size, random_seed):
         """Initialize an Agent object.
         
         Params
@@ -50,23 +55,28 @@ class Agent():
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(random_seed)
+        self.num_agents = num_agents
+        self.epsilon = EPSILON
+        self.epsilon_decay = EPSILON_DECAY
 
         # Actor Network (w/ Target Network)
         self.actor_local = Actor(state_size, action_size, random_seed).to(device)
-        self.actor_target = Actor(state_size, action_size, random_seed).to(device)
+        self.actor_target = TargetNet(Actor(state_size, action_size, random_seed)).target_model.to(device)
+
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
 
         # Critic Network (w/ Target Network)
         self.critic_local = Critic(state_size, action_size, random_seed).to(device)
-        self.critic_target = Critic(state_size, action_size, random_seed).to(device)
+        self.critic_target = TargetNet(Critic(state_size, action_size, random_seed)).target_model.to(device)
+
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
         # Noise process
         self.noise = OUNoise(action_size, random_seed)
 
         # Replay memory
-        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
-        #self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
+        #self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
+        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
     
         # Tensorboard interface
         self.writer = SummaryWriter(comment="-d4pg")
@@ -77,14 +87,16 @@ class Agent():
         """Save experience in replay memory, and use random sample from buffer to learn."""
         # Save experience / reward
 
+        self.step_t += 1
         for i, (state, action, reward, next_state, done) in enumerate(zip(states, actions, rewards, next_states, dones)):
             self.memory.add(state, action, reward, next_state, done)
-            self.step_t += 1
 
-            # Learn, if enough samples are available in memory
-            if len(self.memory) > BATCH_SIZE \
-                and self.step_t >= INITIAL_BUFFER_FILL:
-
+        # Learn, if enough samples are available in memory
+        if len(self.memory) > BATCH_SIZE \
+            and self.step_t >= INITIAL_BUFFER_FILL \
+            and self.step_t % self.num_agents:
+            
+            for _ in range(LEARN_NUM):
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
 
@@ -96,7 +108,7 @@ class Agent():
             action = self.actor_local(state).cpu().data.numpy()
         self.actor_local.train()
         if add_noise:
-            action += self.noise.sample()
+            action += self.noise.sample() * self.epsilon
         return np.clip(action, -1, 1)
 
     def reset(self):
@@ -114,8 +126,8 @@ class Agent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones, idxs, weights = experiences
-        #states, actions, rewards, next_states, dones = experiences
+        #states, actions, rewards, next_states, dones, idxs, weights = experiences
+        states, actions, rewards, next_states, dones = experiences
 
         #rewards = rewards.squeeze(dim = 1)
         #dones = dones.squeeze(dim = 1)
@@ -123,7 +135,7 @@ class Agent():
         # ---------------------------- update critic ---------------------------- #
         # Get predicted next-state actions and Q values from target models
         actions_next = self.actor_target(next_states)
-        Q_targets_next = self.critic_target(next_states, actions_next).detach()
+        Q_targets_next = self.critic_target(next_states, actions_next)
         # Compute Q targets for current states (y_i)
         Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
         # Compute critic loss
@@ -132,11 +144,14 @@ class Agent():
         # Minimize the loss
         self.critic_optimizer.zero_grad()
 
-        (critic_loss * weights).mean().backward()
+        #(critic_loss * weights).mean().backward()
+        critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
+        
         self.critic_optimizer.step()
 
-        updates = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
-        self.memory.update_priorities(idxs, updates)
+        #updates = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
+        #self.memory.update_priorities(idxs, updates)
 
         self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), self.step_t)
 
@@ -154,6 +169,10 @@ class Agent():
         # ----------------------- update target networks ----------------------- #
         self.soft_update(self.critic_local, self.critic_target, TAU)
         self.soft_update(self.actor_local, self.actor_target, TAU)                     
+
+        # ---------------------------- update noise ---------------------------- #
+        self.epsilon -= EPSILON_DECAY
+        self.noise.reset()
 
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.

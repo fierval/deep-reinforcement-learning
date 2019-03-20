@@ -5,7 +5,7 @@ from collections import namedtuple, deque
 
 from model import DDPGActor, D4PGCritic
 from memory import PrioritizedReplayBuffer, ReplayBuffer
-from utils import distr_projection, RewardTracker, TBMeanTracker
+from utils import distr_projection, RewardTracker, TBMeanTracker, TargetNet
 
 import torch
 import torch.nn.functional as F
@@ -15,12 +15,12 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 
 BUFFER_SIZE = int(1e5)      # replay buffer size
-INITIAL_BUFFER_FILL = 5e3   # how many entries should go to the buffer before training starts
-BATCH_SIZE = 64            # minibatch size
+INITIAL_BUFFER_FILL = 128   # how many entries should go to the buffer before training starts
+BATCH_SIZE = 128            # minibatch size
 GAMMA = 0.99                # discount factor
 TAU = 1e-3                  # for soft update of target parameters
-LR_ACTOR = 1e-4             # learning rate of the actor 
-LR_CRITIC = 3e-4            # learning rate of the critic
+LR_ACTOR = 1e-3             # learning rate of the actor 
+LR_CRITIC = 3e-3            # learning rate of the critic
 WEIGHT_DECAY = 1e-5       # L2 weight decay
 REWARD_STEPS = 1            # TODO: look-ahead steps. For now this can only be set to 1.
 
@@ -30,7 +30,8 @@ BETA = 0.7              # initial beta (annealed to 1) for prioritized replaceme
 MAX_T = 1000
 N_EPISODES = 2000
 
-ANNEAL_OVER = 1. / (MAX_T * N_EPISODES * 10)        # beta annealing for prioritized memory replay
+ANNEAL_OVER = 1. / (MAX_T * N_EPISODES)        # beta annealing for prioritized memory replay
+LEARN_NUM = 10
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -72,12 +73,12 @@ class D4PGAgent():
 
         # Actor Network (w/ Target Network)
         self.actor_local = DDPGActor(state_size, action_size).to(device)
-        self.actor_target = DDPGActor(state_size, action_size).to(device)
+        self.actor_target = TargetNet(DDPGActor(state_size, action_size)).target_model.to(device)
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
 
         # Critic Network (w/ Target Network)
         self.critic_local = D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax).to(device)
-        self.critic_target = D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax).to(device)
+        self.critic_target = TargetNet(D4PGCritic(state_size, action_size, N_ATOMS, Vmin, Vmax)).target_model.to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
         # Replay memory with action clipping to -1, 1
@@ -93,15 +94,16 @@ class D4PGAgent():
         """Save experience in replay memory, and use random sample from buffer to learn."""
         # Save experience / reward
 
+        self.step_t += 1
         for i, (state, action, reward, next_state, done) in enumerate(zip(states, actions, rewards, next_states, dones)):
             self.memory.add(state, action, reward, next_state, done)
-            self.step_t += 1
 
-            # Learn, if enough samples are available in memory
-            if len(self.memory) > BATCH_SIZE \
-                and self.step_t >= INITIAL_BUFFER_FILL \
-                and i in self.learning_step_idxs:
-
+        # Learn, if enough samples are available in memory
+        if len(self.memory) > BATCH_SIZE \
+            and self.step_t >= INITIAL_BUFFER_FILL \
+            and self.step_t % self.num_agents:
+            
+            for _ in range(LEARN_NUM):
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
 
@@ -152,6 +154,7 @@ class D4PGAgent():
         self.critic_optimizer.zero_grad()
         #(critic_loss * weights).mean().backward()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
         self.critic_optimizer.step()
 
         # update replay weights
