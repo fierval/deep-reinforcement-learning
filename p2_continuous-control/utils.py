@@ -145,7 +145,7 @@ class RewardTracker:
         self.writer.add_scalar("reward", reward, frame)
         self.writer.add_scalar("min_reward", np.min(scores), frame)
         self.writer.add_scalar("max_reward", np.max(scores), frame)
-        self.writer.add_scalar("duration", duration,)
+        self.writer.add_scalar("duration", duration, frame)
         
         return mean_reward if len(self.total_rewards) > 30 else None
 class TargetNet:
