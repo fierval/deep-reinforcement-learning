@@ -70,7 +70,7 @@ class Agent():
         #self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
         self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
         # Tensorboard interface
-        self.writer = SummaryWriter(comment="-ddpg")
+        self.writer = SummaryWriter(comment="-ddpg-no-bn")
         self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
         self.step_t = 0
 
