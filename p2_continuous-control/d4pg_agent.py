@@ -89,7 +89,7 @@ class D4PGAgent():
 
         # Learn, if enough samples are available in memory
         if len(self.memory) > BATCH_SIZE \
-            and timestamp % self.num_agents:
+            and timestamp % self.num_agents == 0:
             
             for _ in range(LEARN_NUM):
                 experiences = self.memory.sample()
@@ -131,7 +131,7 @@ class D4PGAgent():
         
         next_actions = self.actor_target(next_states)
 
-        target_distribution_next = self.critic_target(next_states, next_actions).detach()
+        target_distribution_next = self.critic_target(next_states, next_actions)
         Q_target_distribution_next = F.softmax(target_distribution_next, dim=1)
 
         Q_target_distribution = distr_projection(Q_target_distribution_next, rewards, dones, 

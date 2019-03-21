@@ -4,7 +4,7 @@ import copy
 from collections import namedtuple, deque
 
 from model import Actor, Critic
-from memory import ReplayBuffer
+from memory import ReplayBuffer, PrioritizedReplayBuffer
 from utils import *
 
 from tensorboardX import SummaryWriter
@@ -26,10 +26,15 @@ OU_THETA = 0.15         # Ornstein-Uhlenbeck noise parameter
 EPSILON = 1.0           # explore->exploit noise process added to act step
 EPSILON_DECAY = 1e-6    # decay rate for noise process
 
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 N_EPISODES = 500
 MAX_T = 1000
+ALPHA = 0.4
+BETA = 0.7
+ANNEAL_OVER = (1 - BETA) / N_EPISODES / 10
+
 class Agent():
     """Interacts with and learns from the environment."""
 
@@ -62,8 +67,8 @@ class Agent():
         self.noise = OUNoise(action_size, random_seed)
 
         # Replay memory
-        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
-
+        #self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
+        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
         # Tensorboard interface
         self.writer = SummaryWriter(comment="-ddpg")
         self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
@@ -109,7 +114,7 @@ class Agent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, idxs, weights = experiences
 
         # ---------------------------- update critic ---------------------------- #
         # Get predicted next-state actions and Q values from target models
@@ -122,9 +127,15 @@ class Agent():
         critic_loss = F.mse_loss(Q_expected, Q_targets)
         # Minimize the loss
         self.critic_optimizer.zero_grad()
-        critic_loss.backward()
+
+        (weights + critic_loss).mean().backward()
+        
         torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
         self.critic_optimizer.step()
+
+        # update priorities
+        updates = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
+        self.memory.update_priorities(idxs, updates)
 
         self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), self.step_t)
 
