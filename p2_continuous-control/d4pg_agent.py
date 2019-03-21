@@ -3,7 +3,7 @@ import random
 import copy, math
 from collections import namedtuple, deque
 
-from model import DDPGActor, D4PGCritic
+from model import Actor, D4PGCritic
 from memory import PrioritizedReplayBuffer, ReplayBuffer
 from utils import distr_projection, RewardTracker, TBMeanTracker, TargetNet
 
@@ -44,13 +44,12 @@ DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 class D4PGAgent():
     """D4PG agent implementation: https://openreview.net/pdf?id=SyZipzbCb"""
     
-    def __init__(self, num_agents, update_fraction, state_size, action_size, random_seed):
+    def __init__(self, num_agents, state_size, action_size, random_seed):
         """Initialize an Agent object.
         
         Params
         ======
             num_agens (int): number of agents generating states/actions
-            update_fraction (float): how often to update
             state_size (int): dimension of each state
             action_size (int): dimension of each action
             random_seed (int): random seed
@@ -59,21 +58,13 @@ class D4PGAgent():
         self.num_agents = num_agents
         self.state_size = state_size
         self.action_size = action_size
-        assert 0 < update_fraction <= 1., "update_fraction should be in (0, 1]"
-
-        update_every = int(math.ceil(update_fraction * num_agents))
-        assert update_every > 0, "update_every too small"
-
-        # indicies along which the arrays of states, actions, etc will be split
-        # so we send them to training every index that occurs in this array
-        self.learning_step_idxs = set(np.arange(num_agents, step=update_every))
 
         random.seed(random_seed)
         torch.manual_seed(random_seed)
 
         # Actor Network (w/ Target Network)
-        self.actor_local = DDPGActor(state_size, action_size).to(device)
-        self.actor_target = TargetNet(DDPGActor(state_size, action_size)).target_model.to(device)
+        self.actor_local = Actor(state_size, action_size, random_seed).to(device)
+        self.actor_target = TargetNet(Actor(state_size, action_size, random_seed)).target_model.to(device)
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
 
         # Critic Network (w/ Target Network)
@@ -90,22 +81,21 @@ class D4PGAgent():
         self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
         self.step_t = 0
 
-    def step(self, states, actions, rewards, next_states, dones):
+    def step(self, state, action, reward, next_state, done, timestamp):
         """Save experience in replay memory, and use random sample from buffer to learn."""
         # Save experience / reward
 
-        self.step_t += 1
-        for i, (state, action, reward, next_state, done) in enumerate(zip(states, actions, rewards, next_states, dones)):
-            self.memory.add(state, action, reward, next_state, done)
+        self.memory.add(state, action, reward, next_state, done)
 
         # Learn, if enough samples are available in memory
         if len(self.memory) > BATCH_SIZE \
-            and self.step_t >= INITIAL_BUFFER_FILL \
-            and self.step_t % self.num_agents:
+            and timestamp % self.num_agents:
             
             for _ in range(LEARN_NUM):
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
+                self.step_t += 1
+
 
     def act(self, states):
         """Returns actions for given state as per current policy."""

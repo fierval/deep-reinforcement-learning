@@ -4,48 +4,38 @@ import copy
 from collections import namedtuple, deque
 
 from model import Actor, Critic
+from memory import ReplayBuffer
+from utils import *
+
+from tensorboardX import SummaryWriter
 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from memory import ReplayBuffer, PrioritizedReplayBuffer
-from utils import *
-
-# use tensorboard to monitor progress
-from tensorboardX import SummaryWriter
-
 BUFFER_SIZE = int(1e6)  # replay buffer size
-INITIAL_BUFFER_FILL = 128   # how many entries should go to the buffer before training starts
 BATCH_SIZE = 128        # minibatch size
 GAMMA = 0.99            # discount factor
-TAU = 1e-2              # for soft update of target parameters
-LR_ACTOR = 1e-3         # learning rate of the actor 
+TAU = 1e-3              # for soft update of target parameters
+LR_ACTOR = 1e-3         # learning rate of the actor
 LR_CRITIC = 1e-3        # learning rate of the critic
 WEIGHT_DECAY = 0        # L2 weight decay
+LEARN_NUM = 10          # number of learning passes
 OU_SIGMA = 0.2          # Ornstein-Uhlenbeck noise parameter
 OU_THETA = 0.15         # Ornstein-Uhlenbeck noise parameter
 EPSILON = 1.0           # explore->exploit noise process added to act step
 EPSILON_DECAY = 1e-6    # decay rate for noise process
-LEARN_NUM = 10
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-ALPHA = 0.8             # priority exponent for prioritized replacement
-BETA = 0.7              # initial beta (annealed to 1) for prioritized replacement
-
+N_EPISODES = 500
 MAX_T = 1000
-N_EPISODES = 2000
-
-ANNEAL_OVER = 1. / (MAX_T * N_EPISODES)        # beta annealing for prioritized memory replay
-
-
 class Agent():
     """Interacts with and learns from the environment."""
-    
+
     def __init__(self, num_agents, state_size, action_size, random_seed):
         """Initialize an Agent object.
-        
+
         Params
         ======
             state_size (int): dimension of each state
@@ -55,50 +45,43 @@ class Agent():
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(random_seed)
-        self.num_agents = num_agents
         self.epsilon = EPSILON
-        self.epsilon_decay = EPSILON_DECAY
+        self.num_agents = num_agents
 
         # Actor Network (w/ Target Network)
         self.actor_local = Actor(state_size, action_size, random_seed).to(device)
-        self.actor_target = TargetNet(Actor(state_size, action_size, random_seed)).target_model.to(device)
-
+        self.actor_target = Actor(state_size, action_size, random_seed).to(device)
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
 
         # Critic Network (w/ Target Network)
         self.critic_local = Critic(state_size, action_size, random_seed).to(device)
-        self.critic_target = TargetNet(Critic(state_size, action_size, random_seed)).target_model.to(device)
-
+        self.critic_target = Critic(state_size, action_size, random_seed).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC, weight_decay=WEIGHT_DECAY)
 
         # Noise process
         self.noise = OUNoise(action_size, random_seed)
 
         # Replay memory
-        #self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
-    
+
         # Tensorboard interface
-        self.writer = SummaryWriter(comment="-d4pg")
+        self.writer = SummaryWriter(comment="-ddpg")
         self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
         self.step_t = 0
 
-    def step(self, states, actions, rewards, next_states, dones):
+    def step(self, state, action, reward, next_state, done, timestamp):
         """Save experience in replay memory, and use random sample from buffer to learn."""
         # Save experience / reward
+        
+        #for state, action, reward, next_state, done in zip(states, actions, rewards, next_states, dones):
+        self.memory.add(state, action, reward, next_state, done)
 
-        self.step_t += 1
-        for i, (state, action, reward, next_state, done) in enumerate(zip(states, actions, rewards, next_states, dones)):
-            self.memory.add(state, action, reward, next_state, done)
-
-        # Learn, if enough samples are available in memory
-        if len(self.memory) > BATCH_SIZE \
-            and self.step_t >= INITIAL_BUFFER_FILL \
-            and self.step_t % self.num_agents:
-            
+        # Learn at defined interval, if enough samples are available in memory
+        if len(self.memory) > BATCH_SIZE and timestamp % self.num_agents == 0:
             for _ in range(LEARN_NUM):
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
+                self.step_t += 1
 
     def act(self, state, add_noise=True):
         """Returns actions for given state as per current policy."""
@@ -108,7 +91,7 @@ class Agent():
             action = self.actor_local(state).cpu().data.numpy()
         self.actor_local.train()
         if add_noise:
-            action += self.noise.sample() * self.epsilon
+            action += self.epsilon * self.noise.sample()
         return np.clip(action, -1, 1)
 
     def reset(self):
@@ -123,14 +106,10 @@ class Agent():
 
         Params
         ======
-            experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
+            experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples
             gamma (float): discount factor
         """
-        #states, actions, rewards, next_states, dones, idxs, weights = experiences
         states, actions, rewards, next_states, dones = experiences
-
-        #rewards = rewards.squeeze(dim = 1)
-        #dones = dones.squeeze(dim = 1)
 
         # ---------------------------- update critic ---------------------------- #
         # Get predicted next-state actions and Q values from target models
@@ -143,15 +122,9 @@ class Agent():
         critic_loss = F.mse_loss(Q_expected, Q_targets)
         # Minimize the loss
         self.critic_optimizer.zero_grad()
-
-        #(critic_loss * weights).mean().backward()
         critic_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
-        
         self.critic_optimizer.step()
-
-        #updates = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
-        #self.memory.update_priorities(idxs, updates)
 
         self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), self.step_t)
 
@@ -168,7 +141,7 @@ class Agent():
 
         # ----------------------- update target networks ----------------------- #
         self.soft_update(self.critic_local, self.critic_target, TAU)
-        self.soft_update(self.actor_local, self.actor_target, TAU)                     
+        self.soft_update(self.actor_local, self.actor_target, TAU)
 
         # ---------------------------- update noise ---------------------------- #
         self.epsilon -= EPSILON_DECAY
@@ -182,7 +155,7 @@ class Agent():
         ======
             local_model: PyTorch model (weights will be copied from)
             target_model: PyTorch model (weights will be copied to)
-            tau (float): interpolation parameter 
+            tau (float): interpolation parameter
         """
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
@@ -190,8 +163,14 @@ class Agent():
 class OUNoise:
     """Ornstein-Uhlenbeck process."""
 
-    def __init__(self, size, seed, mu=0., theta=0.15, sigma=0.2):
-        """Initialize parameters and noise process."""
+    def __init__(self, size, seed, mu=0., theta=OU_THETA, sigma=OU_SIGMA):
+        """Initialize parameters and noise process.
+        Params
+        ======
+            mu: long-running mean
+            theta: the speed of mean reversion
+            sigma: the volatility parameter
+        """
         self.mu = mu * np.ones(size)
         self.theta = theta
         self.sigma = sigma
@@ -208,4 +187,3 @@ class OUNoise:
         dx = self.theta * (self.mu - x) + self.sigma * np.array([random.random() for i in range(len(x))])
         self.state = x + dx
         return self.state
-

@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import time
 import copy, math
 from collections import namedtuple, deque
 
@@ -8,10 +9,11 @@ from utils import distr_projection, RewardTracker, TBMeanTracker
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+import threading
 
 # use tensorboard to monitor progress
-from d4pg_agent import D4PGAgent, N_EPISODES, MAX_T
-from ddpg_agent import Agent
+from d4pg_agent import D4PGAgent
+from ddpg_agent import Agent, N_EPISODES, MAX_T
 
 if __name__ == '__main__':
     from unityagents import UnityEnvironment  
@@ -44,8 +46,8 @@ if __name__ == '__main__':
     n_episodes = N_EPISODES
     max_t = MAX_T
 
-    #agent = D4PGAgent(num_agents, 0.5, state_size, action_size, 1)
-    agent = Agent(num_agents, state_size, action_size, 1)
+    agent = D4PGAgent(num_agents, state_size, action_size, 1)
+    #agent = Agent(num_agents, state_size, action_size, 1)
     max_score = -np.Inf
     solved_episode = -np.Inf
 
@@ -56,7 +58,10 @@ if __name__ == '__main__':
             env_info = env.reset(train_mode=True)[brain_name]
             states = env_info.vector_observations
             scores = np.zeros(num_agents)
-
+            
+            # noise reset
+            #agent.reset()
+            start_time = time.time()
             for t in range(max_t):
                 actions = agent.act(states)
 
@@ -64,8 +69,8 @@ if __name__ == '__main__':
                 next_states = env_info.vector_observations         # get next state (for each agent)
                 rewards = env_info.rewards                         # get reward (for each agent)
                 dones = env_info.local_done                        # see if episode finished
-                agent.step(states, actions, rewards, next_states, dones)
-
+                for state, action, reward, next_state, done in zip(states, actions, rewards, next_states, dones):
+                    agent.step(state, action, reward, next_state, done, t)             
                 states = next_states
 
                 scores += rewards
@@ -74,10 +79,9 @@ if __name__ == '__main__':
                     break
 
             # does all the right things with reward tracking
-            scores = np.mean(scores)
-            mean_reward = reward_tracker.reward(scores, agent.step_t)
-
+            duration = time.time() - start_time
             score = np.mean(scores)
+            mean_reward = reward_tracker.reward(scores, score, agent.step_t, duration)
 
             if max_score < score:
                 if max_score >= SOLVED_SCORE:

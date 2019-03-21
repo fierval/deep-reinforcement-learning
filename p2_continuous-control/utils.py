@@ -122,8 +122,6 @@ class TBMeanTracker:
 class RewardTracker:
     def __init__(self, writer, mean_window = 100):
         self.writer = writer
-        self.ts = time.time()
-        self.ts_frame = 0
         self.total_rewards = []
         self.mean_window = mean_window
 
@@ -133,22 +131,23 @@ class RewardTracker:
     def __exit__(self, *args):
         self.writer.close()
 
-    def reward(self, reward, frame, epsilon=None):
+    def reward(self, scores, reward, frame, duration, epsilon=None):
         self.total_rewards.append(reward)
-        speed = (frame - self.ts_frame) / (time.time() - self.ts)
-        self.ts_frame = frame
-        self.ts = time.time()
+        i_episode = len(self.total_rewards)
         mean_reward = np.mean(self.total_rewards[-self.mean_window :])
         epsilon_str = "" if epsilon is None else ", eps %.2f" % epsilon
-        print("%d: reward %.3f, mean reward %.3f, speed %.2f f/s%s" % (
-            len(self.total_rewards), reward, mean_reward, speed, epsilon_str
+        print("%d: reward %.3f, mean reward %.3f, min %.3f, max %.3f, duration %.2f f/s%s" % (
+            i_episode, reward, mean_reward, np.min(scores), np.max(scores), duration, epsilon_str
         ))
         sys.stdout.flush()
         if epsilon is not None:
             self.writer.add_scalar("epsilon", epsilon, frame)
-        self.writer.add_scalar("speed", speed, frame)
         self.writer.add_scalar("reward_100", mean_reward, frame)
         self.writer.add_scalar("reward", reward, frame)
+        self.writer.add_scalar("min_reward", np.min(scores), frame)
+        self.writer.add_scalar("max_reward", np.max(scores), frame)
+        self.writer.add_scalar("duration", duration, frame)
+        
         return mean_reward if len(self.total_rewards) > 30 else None
 class TargetNet:
     """
