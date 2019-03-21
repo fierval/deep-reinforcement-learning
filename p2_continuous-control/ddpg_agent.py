@@ -31,7 +31,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 N_EPISODES = 500
 MAX_T = 1000
-ALPHA = 0.4
+ALPHA = 0.8
 BETA = 0.7
 ANNEAL_OVER = (1 - BETA) / N_EPISODES / 10
 
@@ -128,7 +128,7 @@ class Agent():
         # Minimize the loss
         self.critic_optimizer.zero_grad()
 
-        (weights + critic_loss).mean().backward()
+        critic_loss.backward()
         
         torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
         self.critic_optimizer.step()

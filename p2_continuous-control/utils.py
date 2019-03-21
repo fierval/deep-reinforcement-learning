@@ -136,9 +136,8 @@ class RewardTracker:
         i_episode = len(self.total_rewards)
         mean_reward = np.mean(self.total_rewards[-self.mean_window :])
         epsilon_str = "" if epsilon is None else ", eps %.2f" % epsilon
-        print("%d: reward %.3f, mean reward %.3f, min %.3f, max %.3f, duration %.2f f/s%s" % (
-            i_episode, reward, mean_reward, np.min(scores), np.max(scores), duration, epsilon_str
-        ))
+        print("%d: reward %.3f, mean reward %.3f, min %.3f, max %.3f, duration %.2f s" % (
+            i_episode, reward, mean_reward, np.min(scores), np.max(scores), duration))
         sys.stdout.flush()
         if epsilon is not None:
             self.writer.add_scalar("epsilon", epsilon, frame)
@@ -146,7 +145,7 @@ class RewardTracker:
         self.writer.add_scalar("reward", reward, frame)
         self.writer.add_scalar("min_reward", np.min(scores), frame)
         self.writer.add_scalar("max_reward", np.max(scores), frame)
-        self.writer.add_scalar("duration", duration, frame)
+        self.writer.add_scalar("duration", duration,)
         
         return mean_reward if len(self.total_rewards) > 30 else None
 class TargetNet:
