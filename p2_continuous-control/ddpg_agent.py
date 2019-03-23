@@ -67,10 +67,11 @@ class Agent():
         self.noise = OUNoise(action_size, random_seed)
 
         # Replay memory
-        #self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
-        self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
+        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed)
+        #self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, random_seed, ALPHA, BETA, ANNEAL_OVER)
+
         # Tensorboard interface
-        self.writer = SummaryWriter(comment="-ddpg-no-bn")
+        self.writer = SummaryWriter(comment="-ddpg-no-pri")
         self.tb_tracker = TBMeanTracker(self.writer, batch_size=10)
         self.step_t = 0
 
@@ -114,7 +115,8 @@ class Agent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones, idxs, weights = experiences
+        #states, actions, rewards, next_states, dones, idxs, weights = experiences
+        states, actions, rewards, next_states, dones = experiences
 
         # ---------------------------- update critic ---------------------------- #
         # Get predicted next-state actions and Q values from target models
@@ -134,8 +136,8 @@ class Agent():
         self.critic_optimizer.step()
 
         # update priorities
-        updates = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
-        self.memory.update_priorities(idxs, updates)
+        # updates = torch.abs(Q_expected - Q_targets).cpu().data.squeeze(1).numpy()
+        # self.memory.update_priorities(idxs, updates)
 
         self.tb_tracker.track("loss_critic", critic_loss.to("cpu"), self.step_t)
 
