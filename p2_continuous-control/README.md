@@ -31,6 +31,10 @@ We treat the environment with 1 agent as a particular case of a multi-agent-one-
 
 The environment is considered solved, when the average (over 100 episodes) of those average scores is at least +30. 
 
+## Video
+
+For the full 38 second video showing a trained agent at work go [here.](https://youtu.be/FQyTcNo4o5U). 
+
 ### Getting Started
 
 1. Download the environment from one of the links below.  You need only select the environment that matches your operating system:
