@@ -101,5 +101,5 @@ Chance plays a huge role in DRL and this needs to be taken into account. A rando
 
 ## References
 
-https://github.com/tommytracey/DeepRL-P2-Continuous-Control
-[Deep Reinforcement Learning Hands-On](https://www.amazon.com/dp/B076H9VQH6/ref=dp-kindle-redirect?_encoding=UTF8&btkr=1) by Max Lapan
+* https://github.com/tommytracey/DeepRL-P2-Continuous-Control
+* [Deep Reinforcement Learning Hands-On](https://www.amazon.com/dp/B076H9VQH6/ref=dp-kindle-redirect?_encoding=UTF8&btkr=1) by Max Lapan
