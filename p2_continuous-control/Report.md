@@ -4,17 +4,17 @@
 
 Deep Deterministic Policy Gradient belongs to the Actor Critic class of the policy-based learning algorithms genus, although it would probably be more precise to call it a "Master-Slave" method (after the famous chapter in Phenomenology by G. W. F. Hegel), after all, actor, while minimizing its loss, is working to minimize that of critic's.
 
-Just like in the discrete DQN space (or any RL space), we are working to maximize the ![qu s a](http://bit.ly/2TsbXhJ) funcion. If ![mus s](http://bit.ly/2TvjiNH) is what we use to get our actions, and everything is deterministic, we can substitute ![mus s](http://bit.ly/2TvjiNH) into the value function directly and obtain the gradient by chain rule: ![gradient](http://bit.ly/2CAd3lL) is going to then be a neural net that accepts the output of actor neural net together with the state. The rest is left to chain rule to get the gradient. Very neat!
+Just like in the discrete DQN space (or any RL space), we are working to maximize the ![qu s a](images/qsa.png) funcion. If ![mus s](images/mus.png) is what we use to get our actions, and everything is deterministic, we can substitute ![mus s](images/mus.png) into the value function directly and obtain the gradient by chain rule: ![gradient](images/gradient.png) is going to then be a neural net that accepts the output of actor neural net together with the state. The rest is left to back propagation to compute the gradient. Very neat!
 
-This also has an advantage of being off policy, so we can gorge ourselves on experience while training which should also help.
+This also has an advantage of being off policy, so we can gorge ourselves on experience while training and independently of it which should also help.
 
 ## Picking the task
 
-I decided to solve the 20 agent environment because it appeared easier to solve than the 1 agent. After all, we are training the same "brain", but the data flows 20 times faster than in the case of a single agent! It appears to me that solving with 1 agent is akin to picking a $1 bill when offered a choice between $1 and $20 bills.
+I decided to solve the 20 agent environment because it appeared easier to solve than the 1 agent. After all, we are training the same "brain", but the data flows 20 times faster than in the case of a single agent! It appears to me that solving with 1 agent is like choosing a $1 bill when offered a choice between $1 and $20 bills.
 
 ## Picking the model
 
-I have experimented with several models, but found the best ones to be what the majority of folks used for training their agents. The one I ended up using also contains a batch normalization layer. There is a difference of opinion as to whether this helps in DRL cases, but it did help in my case.
+I have experimented with several models, but found the best ones to be what the majority of folks used for training their agents. The one I ended up using also contains a batch normalization layer. There is a difference of opinion as to whether this helps in DRL cases, but it did help in our case.
 
 | ![Critic](images/critic.png)   | ![Actor](images/actor.png)  |
 |---|---|
