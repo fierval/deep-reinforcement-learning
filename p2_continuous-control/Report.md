@@ -23,10 +23,10 @@ I have experimented with several models, but found the best ones to be what the 
 
 Due to my love for new and shiny things, I started out by implementing the [D4PG](https://openreview.net/pdf?id=SyZipzbCb) algorithm (the code can be found in `d4pg_agent.py` in this directory). And to push the boundaries even further, the replay buffer was the Prioritized Experience Replay buffer. As stoked as I was, it failed miserably and was also very expensive to experiment with (extremely slow). I then turned to DDPG and failed as well. Prioritized experience replay did not make any difference, I could not get the moving average reward to climb anywhere higher than 3.
 
-I tried increasing the learning rate for the critic moderately that seemed to give learning a boost initially, but it died down quickly. I despaired and turned to external help, (based on [Udacity guidelines](https://www.udacity.com/legal/community-guidelines), honor code and [guidance on avoiding plagiarism](https://udacity.zendesk.com/hc/en-us/articles/360001430552-Guidelines-for-submitting-original-work)).
+I tried increasing the learning rate for the critic moderately that seemed to give learning a boost initially, but it died down quickly. I despaired and turned to external help, (based on [Udacity guidelines](https://www.udacity.com/legal/community-guidelines) and the [guidance on avoiding plagiarism](https://udacity.zendesk.com/hc/en-us/articles/360001430552-Guidelines-for-submitting-original-work)).
 
 I did find two crucial things:
-1. The agent does not start training until _a lot_ of samples were available. In order to get it _a lot_ of samples it was necessary to spin the environment for quite a few cycles before applying learning. But then learning could also run for a few cycles
+1. The agent does not start training until _a lot_ of samples are available. In order to get it _a lot_ of samples it is necessary to spin the environment for quite a few cycles before applying learning. But then learning could also run for a few cycles
 2. I should not be shy with learning rate.
 Thus I ended up with the following hyperparameters:
 
@@ -51,11 +51,11 @@ This is when things became to converge very quickly.
 
 ## Results
 
-Executed 2 runs. In the first run it took **114** episodes to solve the environment. In the second run it took only **75** episodes to acieve the goal of average 30+ reward, so I am not clear on why the environment is considered solved in n - 100 episodes. In the first case, it would mean the environment was solved even before training started running.
+Executed 2 runs. In the first run it took **114** episodes to solve the environment. In the second run it took only **75** episodes to acieve the goal of the average 30+ reward, so I am not clear on why the environment is considered solved in n - 100 episodes. In the first case, it would mean the environment was solved even before training started running.
 
 Graphs below show two different training runs
 
-**Note:** The graphs below are created by TensorBoard. Since TensorBoard "pulses" at every timestamp and each episode consists of 1000 time slices, where training happens for every 10 timesteps every 20 timesteps, 1 episode = 20 * 1000 / 10 = 10 000 time steps. Rewards are collected **once per episode**, losses are collected **once per training step**
+**Note:** The graphs below are created by TensorBoard. Since TensorBoard "pulses" at every timestamp and each episode consists of 1000 timesteps, where training happens for every 10 timesteps every 20 timesteps, 1 episode = 10 * 1000 **recorded** timesteps. Rewards are collected **once per episode, i.e. once per 10000 timesteps**, losses are collected **once per timestep**
 
 Actor (critic) models for both runs are saved as `checkpoint_actor_run_xx.pth` and `checkpoint_critic_run_xx.ptrh`
 
@@ -69,7 +69,7 @@ Actor (critic) models for both runs are saved as `checkpoint_actor_run_xx.pth` a
 
 ### Other Plots
 
-|        Critic Loss      |    Actor Loss  | Duration  |
+|        Critic Loss      |    Actor Loss (-Q(s, a))  | Episode Duration  |
 |-----|---|---|
 | ![critic loss](images/loss_critic.png)  | ![actor loss](images/loss_actor.png)  | ![duration](images/duration.png)  |
 
@@ -90,7 +90,7 @@ Chance plays a huge role in DRL and this needs to be taken into account. A rando
 
 ### Past ML Experience is not Always Useful
 
-... and sometimes actually harmful. As [this pessimistic article](https://www.alexirpan.com/2018/02/14/rl-hard.html) mentions, in vision, if we throw a powerful enough convnet at the problem, we'll get something meaningful back. Here it's a wild wild west and so sometimes taking a risk, like increasing the learning rate by an order of magnitude, may be ok.
+... and sometimes actually harmful. As [this great article](https://www.alexirpan.com/2018/02/14/rl-hard.html) mentions, in vision, if we throw a powerful enough convnet at the problem, we'll get something meaningful back. Here it's a wild wild west and so sometimes taking a risk, like increasing the learning rate by an order of magnitude, may be ok.
 
 ## Future work
 
