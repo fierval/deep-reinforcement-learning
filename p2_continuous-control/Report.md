@@ -98,3 +98,8 @@ Chance plays a huge role in DRL and this needs to be taken into account. A rando
 2. Try PPO: some folks have achieved great results with it and they claim it is faster
 3. Experimient with different lengths of data collection intervals vs learning intervals (right now collecting data every 20 steps then learning for 10)
 4. **Performance tuning** This could really use a perf boost. The solution runs very slow, it underutilizes the GPU (not surprisingly), it slows down significantly as the replay buffer fills up, and since all computations are single-threaded, the multi-core CPU is underutilized as well. Somewhere here a lot of optimization oportunities are burried. Unearthing them would allow greater flexibility for experimentation. As of right now switching to D4PG with Prioritized Experience Replay, even if debugged and working, is not feasible because of the cost. When I was running it and the replay buffer was filling up, episode duration started from 270 sec and reached 1800 sec by episode 45.
+
+## References
+
+https://github.com/tommytracey/DeepRL-P2-Continuous-Control
+[Deep Reinforcement Learning Hands-On](https://www.amazon.com/dp/B076H9VQH6/ref=dp-kindle-redirect?_encoding=UTF8&btkr=1) by Max Lapan
