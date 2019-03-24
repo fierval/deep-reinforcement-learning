@@ -2,9 +2,9 @@
 
 ## Learning algorithm
 
-Deep Deterministic Policy Gradient belongs to the Actor Critic class of the policy-based learning algorithms genus, although it would probably be more precise to call it a "Master-Slave" method (after the famous chapter in Phenomenology by G. W. F. Hegel), after all, actor, while minimizing its loss, is working to minimize that of critic's.
+Deep Deterministic Policy Gradient belongs to the Actor Critic class of the policy-based learning algorithms genus, although it would probably be more precise to call it a "Master-Slave" method (after the famous chapter in Phenomenology by G. W. F. Hegel), after all, actor is working hard to maximize critic output.
 
-Just like in the discrete DQN space (or any RL space), we are working to maximize the ![qu s a](images/qsa.png) funcion. If ![mus s](images/mus.png) is what we use to get our actions, and everything is deterministic, we can substitute ![mus s](images/mus.png) into the value function directly and obtain the gradient by chain rule: ![gradient](images/gradient.png). And so we can use a neural net that accepts the output of actor neural net together with the state. The rest is left to back propagation to compute the gradient. Very neat!
+Just like in the discrete DQN space (or any RL space), we are working to maximize the ![qu s a](images/qsa.png) funcion. If ![mus s](images/mus.png) is what we use to get our actions, and everything is deterministic, we can substitute ![mus s](images/mus.png) into the value function directly and obtain the gradient by chain rule: ![gradient](images/gradient.png). And so we can use a neural net that accepts the output of actor neural net together with the state. The rest is left to back propagation to compute the gradient. And since actor network is working hard to maximize critic output, we simply express it in terms of loss by setting actor loss to negative critic output (thus completing the master-slave relationship).
 
 This also has an advantage of being off policy, so we can gorge ourselves on experience while training and independently of it which should also help.
 
