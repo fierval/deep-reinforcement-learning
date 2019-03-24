@@ -4,7 +4,7 @@
 
 Deep Deterministic Policy Gradient belongs to the Actor Critic class of the policy-based learning algorithms genus, although it would probably be more precise to call it a "Master-Slave" method (after the famous chapter in Phenomenology by G. W. F. Hegel), after all, actor, while minimizing its loss, is working to minimize that of critic's.
 
-Just like in the discrete DQN space (or any RL space), we are working to maximize the ![qu s a](images/qsa.png) funcion. If ![mus s](images/mus.png) is what we use to get our actions, and everything is deterministic, we can substitute ![mus s](images/mus.png) into the value function directly and obtain the gradient by chain rule: ![gradient](images/gradient.png) is going to then be a neural net that accepts the output of actor neural net together with the state. The rest is left to back propagation to compute the gradient. Very neat!
+Just like in the discrete DQN space (or any RL space), we are working to maximize the ![qu s a](images/qsa.png) funcion. If ![mus s](images/mus.png) is what we use to get our actions, and everything is deterministic, we can substitute ![mus s](images/mus.png) into the value function directly and obtain the gradient by chain rule: ![gradient](images/gradient.png). And so we can use a neural net that accepts the output of actor neural net together with the state. The rest is left to back propagation to compute the gradient. Very neat!
 
 This also has an advantage of being off policy, so we can gorge ourselves on experience while training and independently of it which should also help.
 
@@ -23,14 +23,14 @@ I have experimented with several models, but found the best ones to be what the 
 
 Due to my love for new and shiny things, I started out by implementing the [D4PG](https://openreview.net/pdf?id=SyZipzbCb) algorithm (the code can be found in `d4pg_agent.py` in this directory). And to push the boundaries even further, the replay buffer was the Prioritized Experience Replay buffer. As stoked as I was, it failed miserably and was also very expensive to experiment with (extremely slow). I then turned to DDPG and failed as well. Prioritized experience replay did not make any difference, I could not get the moving average reward to climb anywhere higher than 3.
 
-I tried increasing the learning rate for the critic moderately that seemed to give learning a boost initially, but it died down quickly. I despaired and turned to external help, (based on [Udacity guidelines](https://www.udacity.com/legal/community-guidelines), honor code and [guidance on avoiding plagiarism](https://udacity.zendesk.com/hc/en-us/articles/360001430552-Guidelines-for-submitting-original-work).
+I tried increasing the learning rate for the critic moderately that seemed to give learning a boost initially, but it died down quickly. I despaired and turned to external help, (based on [Udacity guidelines](https://www.udacity.com/legal/community-guidelines), honor code and [guidance on avoiding plagiarism](https://udacity.zendesk.com/hc/en-us/articles/360001430552-Guidelines-for-submitting-original-work)).
 
 I did find two crucial things:
 1. The agent does not start training until _a lot_ of samples were available. In order to get it _a lot_ of samples it was necessary to spin the environment for quite a few cycles before applying learning. But then learning could also run for a few cycles
 2. I should not be shy with learning rate.
+Thus I ended up with the following hyperparameters:
 
 ```python
-Thus I ended up with the following hyperparameters:
 BUFFER_SIZE = int(1e6)  # replay buffer size
 BATCH_SIZE = 128        # minibatch size
 GAMMA = 0.99            # discount factor
@@ -45,7 +45,7 @@ EPSILON = 1.0           # explore->exploit noise process added to act step
 EPSILON_DECAY = 1e-6    # decay rate for noise process
 ```
 
-The only ones of interest here are `LR_ACTOR` and `LR_CRITIC`. From my work in vision I know that learning rate can work magic on the solution both ways (make or break), so I was reluctant to change it too much from the original values of `1e-4` (`3e-4` for critic). However this was the second crucial step in this case.
+The only ones of interest here are `LR_ACTOR` and `LR_CRITIC`. From my work in vision I know that learning rate can work magic on a solution both ways (make or break), so I was reluctant to change it too much from the original values of `1e-4` (`3e-4` for critic). However this was the second crucial step in this case.
 
 This is when things became to converge very quickly.
 
@@ -63,12 +63,11 @@ Chance plays a huge role in DRL and this needs to be taken into account. A rando
 
 ### Past ML Experience is not Always Useful
 
-... and sometimes actually harmful. As [this pessimistic article](https://www.alexirpan.com/2018/02/14/rl-hard.html) mentions, in vision, we throw a powerful enough convnet at the problem, we'll get something meaningful back. Here it's a wild wild west and so sometimes taking a risk, like increasing the learning rate by an order of magnitude, may be ok.
+... and sometimes actually harmful. As [this pessimistic article](https://www.alexirpan.com/2018/02/14/rl-hard.html) mentions, in vision, if we throw a powerful enough convnet at the problem, we'll get something meaningful back. Here it's a wild wild west and so sometimes taking a risk, like increasing the learning rate by an order of magnitude, may be ok.
 
 ## Future work
 
 1. Get some clarity on D4PG situation: bugs or suboptimal?
 2. Try PPO: some folks have achieved great results with it and they claim it is faster
 3. Experimient with different lengths of data collection intervals vs learning intervals (right now collecting data every 20 steps then learning for 10)
-4. Figure out why prioritized replay does not speed things up.
-5. **Performance tuning** This could really use a perf boost. The solution runs very slow, it underutilizes the GPU (not surprisingly), it slows down significantly as the replay buffer fills up, and since all computations are single-threaded, the multi-core CPU is underutilized as well. Somewhere here a lot of optimization oportunities are burried. Unearthing them would allow greater flexibility for experimentation. As of right now switching to D4PG with Prioritized Experience Replay, even if debugged and working, is not feasible because of the cost. When I was running it and the replay buffer was filling up, episode duration started from 270 sec and reached 1800 sec by episode 45.
+4. **Performance tuning** This could really use a perf boost. The solution runs very slow, it underutilizes the GPU (not surprisingly), it slows down significantly as the replay buffer fills up, and since all computations are single-threaded, the multi-core CPU is underutilized as well. Somewhere here a lot of optimization oportunities are burried. Unearthing them would allow greater flexibility for experimentation. As of right now switching to D4PG with Prioritized Experience Replay, even if debugged and working, is not feasible because of the cost. When I was running it and the replay buffer was filling up, episode duration started from 270 sec and reached 1800 sec by episode 45.
