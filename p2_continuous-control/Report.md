@@ -49,23 +49,25 @@ The only ones of interest here are `LR_ACTOR` and `LR_CRITIC`. From my work in v
 
 This is when things became to converge very quickly.
 
-## Plots
+## Results
 
-Executed 2 runs. In the latest run it took **75** episodes to acieve the goal of average 30+ reward. In the first run it took **114** episodes, so I am not clear on why the environment is considered solved in n - 100 episodes. In the first case, it would mean the environment was solved even before training started running.
+Executed 2 runs. In the first run it took **114** episodes to solve the environment. In the second run it took only **75** episodes to acieve the goal of average 30+ reward, so I am not clear on why the environment is considered solved in n - 100 episodes. In the first case, it would mean the environment was solved even before training started running.
 
 Graphs below show two different training runs
 
 **Note:** The graphs below are created by TensorBoard. Since TensorBoard "pulses" at every timestamp and each episode consists of 1000 time slices, where training happens for every 10 timesteps every 20 timesteps, 1 episode = 20 * 1000 / 10 = 10 000 time steps. Rewards are collected **once per episode**, losses are collected **once per training step**
 
-## Rewards
+Actor (critic) models for both runs are saved as `checkpoint_actor_run_xx.pth` and `checkpoint_critic_run_xx.ptrh`
+
+### Rewards
 
 ![Rewards](images/rewards.png)
 
-## Mean Rewards
+### Mean Rewards
 
 ![Rewards](images/rewards_100.png)
 
-## Other Plots
+### Other Plots
 
 |        Critic Loss      |    Actor Loss  | Duration  |
 |-----|---|---|
