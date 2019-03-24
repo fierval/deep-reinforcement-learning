@@ -49,7 +49,32 @@ The only ones of interest here are `LR_ACTOR` and `LR_CRITIC`. From my work in v
 
 This is when things became to converge very quickly.
 
-## Rewards Plot
+## Plots
+
+Executed 2 runs. In the latest run it took **75** episodes to acieve the goal of average 30+ reward. In the first run it took **114** episodes, so I am not clear on why the environment is considered solved in n - 100 episodes. In the first case, it would mean the environment was solved even before training started running.
+
+Graphs below show two different training runs
+
+**Note:** The graphs below are created by TensorBoard. Since TensorBoard "pulses" at every timestamp and each episode consists of 1000 time slices, where training happens for every 10 timesteps every 20 timesteps, 1 episode = 20 * 1000 / 10 = 10 000 time steps. Rewards are collected **once per episode**, losses are collected **once per training step**
+
+## Rewards
+
+![Rewards](images/rewards.png)
+
+## Mean Rewards
+
+![Rewards](images/rewards_100.png)
+
+## Other Plots
+
+|        Critic Loss      |    Actor Loss  | Duration  |
+|-----|---|---|
+| ![critic loss](images/loss_critic.png)  | ![actor loss](images/loss_actor.png)  | ![duration](images/duration.png)  |
+
+We clearly see:
+
+1. Under the given scheme trained model converges to the maximum reward of 40
+2. Duration of each episode depends on the size of the replay buffer. A good source of future performance optimization.
 
 ## Lessons Learned
 
