@@ -24,7 +24,7 @@ The second version is useful for algorithms like [PPO](https://arxiv.org/pdf/170
 
 For this project we solve the second environment but the code can be used as is to solve the first one as well.
 
-We treat the environment with 1 agent as a particular case of a multi-agent-one-brain environment and define the exist criteria accordingly:
+We treat the environment with 1 agent as a particular case of a multi-agent-one-brain environment and define the exit criteria accordingly:
 
 - After each episode, we add up the rewards that each agent received (without discounting), to get a score for each agent. We then take the average of these scores. 
 - This yields an **average score** for each episode (where the average is over all agents in the environment).
