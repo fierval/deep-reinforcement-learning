@@ -55,14 +55,6 @@ if __name__ == "__main__":
         agents.append(PPOAgent(i, policy, optimizer, policy_critic, optimizer_critic, EPOCHS, EPSILON, BETA))
 
     with RewardTracker(writer, mean_window=AVG_WIN) as reward_tracker:
-        for episode in range(MAX_EPISODES):
+        while True:
 
-            env_info = env.reset(train_mode=True)[brain_name]
-            states = env_info.vector_observations
-
-            for t in range(TMAX):
-                actions = [agent.act(state).squeeze().cpu().detach().numpy() for state, agent in zip(states, agents)]
-                actions = np.vstack(actions)
-
-                env_info = env.step(actions)[brain_name]
-
+    
