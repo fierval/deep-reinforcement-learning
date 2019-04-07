@@ -8,8 +8,11 @@ class GaussianPolicyActor(nn.Module):
     def __init__(self, obs_size, act_size):
         super().__init__()
 
+        self.action_dim = act_size
+        self.state_dim = obs_size
+
         self.mu = nn.Sequential(
-            nn.Linear(obs_size, HID_SIZE),
+            nn.Linear(obs_size + 1, HID_SIZE),
             nn.Tanh(),
             nn.Linear(HID_SIZE, HID_SIZE),
             nn.Tanh(),
@@ -18,7 +21,9 @@ class GaussianPolicyActor(nn.Module):
         )
         self.logstd = nn.Parameter(torch.zeros(act_size))
 
-    def forward(self, x):
+    def forward(self, x, idx):
+        x = torch.cat((x, idx), dim = 1)
+
         mean = self.mu(x)
         dist = torch.distributions.Normal(mean, F.softplus(self.logstd))
         return mean, dist

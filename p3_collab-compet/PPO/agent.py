@@ -37,26 +37,12 @@ class PPOAgent():
         self.epochs = epochs
         
         # extra parameter to be added to states
-        self.idx_me = None
-        self.index = index
+        self.idx_me = torch.ones(self.policy.state_dim).unsqueeze(1).to(device) * index
 
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
 
-    def get_state_tensor(self, state):
-        if self.idx_me is None:
-            self.idx_me = torch.ones(state.shape[0]).unsqueeze(1).to(device) * self.index
-
-        return torch.cat((state, self.idx_me), dim = 1)
-
-    def policy_func(self, state):
-        """
-        Wrapper for running through policy. We need to add the index parameter
-        """
-        st = self.get_state_tensor(state)
-        return self.policy(st)
-
-    def calc_adv_ref(self, rewards, states):
+    def calc_adv_ref(self, rewards, states, dones):
         """
         By trajectory calculate advantage and 1-step ref value
         :param rewards: rewards list
@@ -71,12 +57,15 @@ class PPOAgent():
         last_gae = 0.0
         result_adv = []
         result_ref = []
-        for val, next_val, reward in zip(reversed(values[:-1]), reversed(values[1:]),
-                                        reversed(rewards[:-1])):
-            delta = reward + GAMMA * next_val - val
-            last_gae = delta + GAMMA * GAE_LAMBDA * last_gae
-            result_adv.append(last_gae)
-            result_ref.append(last_gae + val)
+        for val, next_val, reward, done in zip(reversed(values[:-1]), reversed(values[1:]), reversed(rewards[:-1]), reversed(dones[:-1])):
+            if done:
+                delta = reward - val
+                last_gae = delta
+            else:
+                delta = reward + GAMMA * next_val - val
+                last_gae = delta + GAMMA * GAE_LAMBDA * last_gae
+                result_adv.append(last_gae)
+                result_ref.append(last_gae + val)
 
         adv_v = torch.FloatTensor(list(reversed(result_adv))).to(device)
         ref_v = torch.FloatTensor(list(reversed(result_ref))).to(device)
@@ -91,7 +80,7 @@ class PPOAgent():
 
         self.policy.eval()
         with torch.no_grad():
-            _, dist = self.policy_func(state)
+            _, dist = self.policy(state, self.idx_me)
         self.policy.train()
         return dist.sample()
 
@@ -106,7 +95,7 @@ class PPOAgent():
         rewards = torch.tensor(rewards_normalized, dtype=torch.float, device=device)
 
         # convert states to policy (or probability)
-        _, dist = self.policy_func(states)
+        _, dist = self.policy(states, self.idx_me)
         new_log_probs = self.calc_logprob(dist, actions)
 
         # ratio for clipping
