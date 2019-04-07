@@ -11,10 +11,10 @@ EPOCHS = 4              # train for this number of epochs at a time
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-class Agent():
+class PPOAgent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, index, policy, optimizer):
+    def __init__(self, index, policy, optimizer):
         """Initialize an Agent object.
         
         Params
@@ -25,9 +25,6 @@ class Agent():
             policy (Pytorch network): policy to be learned/executed
             optimizer (Pytorch optimizer): optimizer to be used
         """
-        self.state_size = state_size
-        self.action_size = action_size
-
         # self.policy = Policy(state_size, action_size, seed).to(device)
         # self.optimizer = optim.Adam(self.policy.parameters(), lr=LR)
         self.policy = policy

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-def SharedPolicy(state_size, action_size, seed = 1, fc1_units=128, fc2_units=128):
+def SharedPolicy(state_size, action_size, seed = 1, fc1_units=128, fc2_units=64):
     """Initialize parameters and build model.
     Params
     ======
