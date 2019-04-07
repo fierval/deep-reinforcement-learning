@@ -52,33 +52,18 @@ class PPOAgent():
         st = self.get_state_tensor(state)
         return self.policy(st)
 
-    def calc_logprob(self, mu_v, actions_v):
-        logstd_v = self.policy.logstd
-        p1 = - ((mu_v - actions_v) ** 2) / (2*torch.exp(logstd_v).clamp(min=1e-3))
-        p2 = - torch.log(torch.sqrt(2 * math.pi * torch.exp(logstd_v)))
-        return p1 + p2
+    def calc_logprob(self, dist, actions_v):
+        logprob = dist.log_prob(actions_v).sum(-1).unsqueeze(-1)
+        return logprob
 
     def act(self, state):
         state = torch.from_numpy(state).float().unsqueeze(0).to(device)
 
         self.policy.eval()
         with torch.no_grad():
-            action = self.policy_func(state)
+            _, dist = self.policy_func(state)
         self.policy.train()
-        return action
-
-    def act_train(self, state):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
-
-        self.policy.eval()
-        with torch.no_grad():
-            mu_v = self.policy_func(state)
-            mu = mu_v.data.cpu().numpy()
-            logstd = self.policy.logstd.data.cpu().numpy()
-            action = mu + np.exp(logstd) * np.random.normal(size=logstd.shape)
-            action = np.clip(action, -1, 1)
-        self.policy.train()
-        return action
+        return dist.sample()
 
     def surrogate(self, old_probs, states, actions, rewards):
         """
@@ -101,8 +86,8 @@ class PPOAgent():
         rewards = torch.tensor(rewards_normalized, dtype=torch.float, device=device)
 
         # convert states to policy (or probability)
-        mu_v = self.policy_func(states)
-        new_log_probs = self.calc_logprob(mu_v, actions)
+        _, dist = self.policy_func(states)
+        new_log_probs = self.calc_logprob(dist, actions)
         new_probs = torch.exp(new_log_probs)
 
         # ratio for clipping
@@ -112,12 +97,8 @@ class PPOAgent():
         clip = torch.clamp(ratio, 1-self.epsilon, 1+self.epsilon)
         clipped_surrogate = torch.min(ratio*rewards, clip*rewards)
 
-        # include a regularization term
-        # this steers new_policy towards 0.5
-        # add in 1.e-10 to avoid log(0) which gives nan
-        entropy = -(new_probs*torch.log(old_probs+1.e-10)+ \
-            (1.0-new_probs)*torch.log(1.0-old_probs+1.e-10))
-        
+        entropy = dist.entropy().sum(-1).unsqueeze(-1)
+
         # this returns an average of all the entries of the tensor
         # effective computing L_sur^clip / T
         # averaged over time-step and number of trajectories

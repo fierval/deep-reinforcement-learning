@@ -1,11 +1,14 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 HID_SIZE = 64
-class SharedPolicy(nn.Module):
-    def __init__(self, obs_size, act_size):
+
+class GaussianPolicy(nn.Module):
+    def __init__(self, obs_size, act_size, seed=1):
         super().__init__()
 
+        torch.manual_seed(seed)
         self.mu = nn.Sequential(
             nn.Linear(obs_size, HID_SIZE),
             nn.Tanh(),
@@ -17,4 +20,6 @@ class SharedPolicy(nn.Module):
         self.logstd = nn.Parameter(torch.zeros(act_size))
 
     def forward(self, x):
-        return self.mu(x)
+        mean = self.mu(x)
+        dist = torch.distributions.Normal(mean, F.softplus(self.logstd))
+        return mean, dist

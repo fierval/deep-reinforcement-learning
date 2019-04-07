@@ -1,4 +1,4 @@
-from model import SharedPolicy
+from model import GaussianPolicy
 import torch
 import numpy as np
 
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     state_size = states.shape[1]
 
     # create policy to be trained & optimizer
-    policy = SharedPolicy(state_size, action_size, seed=33)
+    policy = GaussianPolicy(state_size, action_size, seed=33)
     optimizer = torch.optim.Adam(policy.parameters(), lr=LR)
 
     writer = tensorboardX.SummaryWriter(comment="-mappo")
@@ -53,6 +53,7 @@ if __name__ == "__main__":
 
             for t in range(TMAX):
                 actions = [agent.act(state).squeeze().cpu().detach().numpy() for state, agent in zip(states, agents)]
-
+                actions = np.vstack(actions)
+                
                 env_info = env.step(actions)[brain_name]
 
