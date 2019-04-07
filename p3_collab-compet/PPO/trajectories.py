@@ -81,7 +81,7 @@ class TrajectoryCollector:
             else:
                 self.rewards = np.r_[self.rewards, r]
 
-            if memory["dones"].any():
+            if env_info.local_done.any():
                 rewards_mean = self.rewards.max(axis=0).mean()
                 self.scores_by_episode.append(rewards_mean)
                 self.rewards = None
