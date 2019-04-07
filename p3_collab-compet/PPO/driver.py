@@ -49,10 +49,9 @@ if __name__ == "__main__":
     
     # create agents
     agents = []
-    trajectories = []
+    trajectories = TrajectoryCollector(env, policy, num_agents, tmax=TMAX)
 
     for i in range(1, num_agents + 1):
-        trajectories.append(TrajectoryCollector(env, policy, i, tmax=TMAX))
         agents.append(PPOAgent(i, policy, optimizer, policy_critic, optimizer_critic, EPOCHS, EPSILON, BETA))
 
     with RewardTracker(writer, mean_window=AVG_WIN) as reward_tracker:

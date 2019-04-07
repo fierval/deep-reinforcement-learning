@@ -14,18 +14,17 @@ class TrajectoryCollector:
             "rewards", "log_probs", "dones",
         ]
 
-    def __init__(self, env, policy, policy_critic, num_agents, tmax=300):
+    def __init__(self, env, policy, num_agents, tmax=300):
         self.env = env
         self.policy = policy
         self.num_agents = num_agents
         self.idx_me = [torch.ones(self.policy.state_dim).unsqueeze(1).to(device) * (index + 1) for index in range(num_agents)]
-        self.policy_critic = policy_critic
         self.tmax = tmax
 
         self.rewards = None
         self.scores_by_episode = None
         self.brain_name =None
-        self.last_states = None
+        self.last_states = [None] * self.num_agents
         self.reset()
         
     @staticmethod
@@ -50,6 +49,7 @@ class TrajectoryCollector:
         # split trajectory between agents
         for _ in range(self.tmax):
             all_memory = [{}] * self.num_agents
+            env_info = self.env.step(actions_np)[self.brain_name]
 
             for i in range(self.num_agents):    
                 memory = all_memory[i]
@@ -64,27 +64,28 @@ class TrajectoryCollector:
 
                 # one step forward
                 actions_np = memory["actions"].cpu().numpy()
-                env_info = self.env.step(actions_np)[self.brain_name]
+                
                 memory["next_states"] = self.to_tensor(env_info.vector_observations[i]).unsqueeze(0)
                 memory["rewards"] = self.to_tensor(env_info.rewards[i]).unsqueeze(0)
-                memory["dones"] = self.to_tensor(env_info.local_done, dtype=np.uint8).unsqueeze(0)
+                memory["dones"] = self.to_tensor(env_info.local_done[i], dtype=np.uint8).unsqueeze(0)
 
                 # stack one step memory to buffer
                 for k, v in memory.items():
                     buffer[i][k].append(v.unsqueeze(0))
 
-                self.last_states = memory["next_states"]
-                r = np.array(env_info.rewards)[None,:]
-                if self.rewards is None:
-                    self.rewards = r
-                else:
-                    self.rewards = np.r_[self.rewards, r]
+            self.last_states = np.array(env_info.vector_observations)[None, :]
 
-                if memory["dones"].any():
-                    rewards_mean = self.rewards.sum(axis=0).mean()
-                    self.scores_by_episode.append(rewards_mean)
-                    self.rewards = None
-                    self.reset()
+            r = np.array(env_info.rewards)[None,:]
+            if self.rewards is None:
+                self.rewards = r
+            else:
+                self.rewards = np.r_[self.rewards, r]
+
+            if memory["dones"].any():
+                rewards_mean = self.rewards.max(axis=0).mean()
+                self.scores_by_episode.append(rewards_mean)
+                self.rewards = None
+                self.reset()
 
         for b in buffer:
             for k, v in b.items():
