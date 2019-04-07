@@ -4,11 +4,10 @@ import torch.nn.functional as F
 
 HID_SIZE = 64
 
-class GaussianPolicy(nn.Module):
-    def __init__(self, obs_size, act_size, seed=1):
+class GaussianPolicyActor(nn.Module):
+    def __init__(self, obs_size, act_size):
         super().__init__()
 
-        torch.manual_seed(seed)
         self.mu = nn.Sequential(
             nn.Linear(obs_size, HID_SIZE),
             nn.Tanh(),
@@ -23,3 +22,19 @@ class GaussianPolicy(nn.Module):
         mean = self.mu(x)
         dist = torch.distributions.Normal(mean, F.softplus(self.logstd))
         return mean, dist
+
+class ModelCritic(nn.Module):
+    def __init__(self, obs_size):
+        super().__init__()
+
+        self.value = nn.Sequential(
+            nn.Linear(obs_size, HID_SIZE),
+            nn.ReLU(),
+            nn.Linear(HID_SIZE, HID_SIZE),
+            nn.ReLU(),
+            nn.Linear(HID_SIZE, 1),
+        )
+
+    def forward(self, x):
+        return self.value(x)
+

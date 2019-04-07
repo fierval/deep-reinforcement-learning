@@ -1,4 +1,4 @@
-from model import GaussianPolicy
+from model import *
 import torch
 import numpy as np
 
@@ -14,6 +14,7 @@ EPOCHS = 4              # train for this number of epochs at a time
 TMAX = 300              # maximum trajectory length
 MAX_EPISODES = 500      # episodes
 AVG_WIN = 100           # moving average over...
+SEED = 1                # leave everything to chance
 
 if __name__ == "__main__":
     env = UnityEnvironment(file_name="Tennis_Win/Tennis")
@@ -33,17 +34,20 @@ if __name__ == "__main__":
     # examine the state space 
     states = env_info.vector_observations
     state_size = states.shape[1]
-
+    torch.manual_seed(SEED)
     # create policy to be trained & optimizer
-    policy = GaussianPolicy(state_size, action_size, seed=33)
+    policy = GaussianPolicyActor(state_size, action_size)
     optimizer = torch.optim.Adam(policy.parameters(), lr=LR)
+
+    policy_critic = ModelCritic(state_size)
+    optimizer_critic = torch.optim.Adam(policy_critic.parameters(), lr=LR)
 
     writer = tensorboardX.SummaryWriter(comment="-mappo")
     
     # create agents
     agents = []
     for i in range(1, num_agents + 1):
-        agents.append(PPOAgent(i, policy, optimizer, EPOCHS, EPSILON, BETA))
+        agents.append(PPOAgent(i, policy, optimizer, policy_critic, optimizer_critic, EPOCHS, EPSILON, BETA))
 
     with RewardTracker(writer, mean_window=AVG_WIN) as reward_tracker:
         for episode in range(MAX_EPISODES):
@@ -54,6 +58,6 @@ if __name__ == "__main__":
             for t in range(TMAX):
                 actions = [agent.act(state).squeeze().cpu().detach().numpy() for state, agent in zip(states, agents)]
                 actions = np.vstack(actions)
-                
+
                 env_info = env.step(actions)[brain_name]
 
