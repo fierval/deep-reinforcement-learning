@@ -21,15 +21,27 @@ class TrajectoryCollector:
         self.idx_me = [torch.ones(self.policy.state_dim).unsqueeze(1).to(device) * (index + 1) for index in range(num_agents)]
         self.tmax = tmax
 
-        self.rewards = None
-        self.scores_by_episode = None
-        self.brain_name =None
-        self.last_states = [None] * self.num_agents
+        self.rewards = []
+        self.scores_by_episode = []
+        self.brain_name = None
+        self.last_states = [[]] * self.num_agents
         self.reset()
         
     @staticmethod
     def to_tensor(x, dtype=np.float32):
         return torch.from_numpy(np.array(x).astype(dtype)).to(device)
+
+    def act(self, state, idx):
+        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+
+        self.policy.eval()
+        with torch.no_grad():
+            _, dist = self.policy(state, self.idx_me)
+            actions = torch.clamp(dist.sample(), -1, 1)
+            pred = actions, dist.log_prob(actions).sum(-1).unsqueeze(-1)
+        self.policy.train()
+
+        return pred
 
     def reset(self):
         self.brain_name = self.env.brain_names[0]
@@ -56,12 +68,8 @@ class TrajectoryCollector:
 
                 # draw action from model
                 memory["states"] = self.last_states
-                pred = self.policy(memory["states"], self.idx_me)
-                pred = [v.detach() for v in pred]
+                memory["actions"], memory["log_probs"] = self.policy(memory["states"], self.idx_me)
                 
-                memory["actions"], dist = pred
-                memory["log_probs"] = dist.log_prob(memory["actions"]).sum(-1).unsqueeze(-1)
-
                 # one step forward
                 actions_np = memory["actions"].cpu().numpy()
                 
@@ -89,6 +97,6 @@ class TrajectoryCollector:
 
         for b in buffer:
             for k, v in b.items():
-                buffer[k] = torch.cat(v, dim=0)
+                b[k] = torch.cat(v, dim=0)
 
         return buffer    

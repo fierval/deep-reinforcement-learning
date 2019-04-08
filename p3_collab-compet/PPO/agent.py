@@ -12,7 +12,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class PPOAgent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, index, policy, optimizer, policy_critic, optimizer_critic, epochs, epsilon, beta):
+    def __init__(self, index, policy, optimizer, policy_critic, optimizer_critic, tb_tracker, epsilon, beta):
         """Initialize an Agent object.
         
         Params
@@ -22,19 +22,19 @@ class PPOAgent():
             optimizer (Pytorch optimizer): optimizer to be used
             policy_critic (Pytorch network): policy critic for V function
             optimizer_critic (Pytorch optimizer): optimizer for crtic
+            tb_tracker (tensorboard tracker)
             epsilon - action clipping: [1 - epsilon, 1 + epsilon]
             beta - regularization parameter
-            epochs - number of training epochs
         """
         
         self.policy = policy
         self.optimizer = optimizer
         self.policy_critic = policy_critic
         self.optimizer_critic = optimizer_critic
-
+        self.tb_tracker = tb_tracker
+        
         self.beta = beta
         self.epsilon = epsilon
-        self.epochs = epochs
         
         # extra parameter to be added to states
         self.idx_me = torch.ones(self.policy.state_dim).unsqueeze(1).to(device) * index
@@ -69,7 +69,7 @@ class PPOAgent():
 
         adv_v = torch.FloatTensor(list(reversed(result_adv))).to(device)
         ref_v = torch.FloatTensor(list(reversed(result_ref))).to(device)
-        return adv_v, ref_v
+        return adv_v, ref_v, values_v
 
     def calc_logprob(self, dist, actions_v):
         logprob = dist.log_prob(actions_v).sum(-1).unsqueeze(-1)
@@ -82,7 +82,8 @@ class PPOAgent():
         with torch.no_grad():
             _, dist = self.policy(state, self.idx_me)
         self.policy.train()
-        return dist.sample()
+
+        return torch.clamp(dist.sample(), -1, 1)
 
     def surrogate(self, old_log_probs, states, actions, rewards_normalized):
         """
@@ -120,28 +121,29 @@ class PPOAgent():
         ======
             trajectories (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
         """
-        old_log_probs, states, actions, rewards = trajectories
-        adv_v, ref_v = self.calc_adv_ref(rewards, states)
+        old_log_probs, states, actions, rewards, dones = 
+            trajectories["log_probs"], trajectories["states"], trajectories["actions"], trajectories["rewards"], trajectories["dones"]
+
+        adv_v, ref_v, values_v = self.calc_adv_ref(rewards, states, dones)
+        values_v = values_v.squeeze(-1)
 
         future_rewards = (adv_v - torch.mean(adv_v)) / (torch.std(adv_v) + 1.e-10)
+        
+        # v-function (critic)
+        self.optimizer_critic.zero_grad()
 
-        for _ in range(self.epochs):
-            
-            # v-function (critic)
-            self.optimizer_critic.zero_grad()
-            values = self.policy_critic(states)
-            loss_values = F.mse_loss(values.squeeze(-1), ref_v)
-            loss_values.backward()
-            self.optimizer_critic.step()
+        loss_values = F.mse_loss(values_v, ref_v)
+        loss_values.backward()
+        self.optimizer_critic.step()
 
-            # surrogate function (actor)
-            L = - self.surrogate(old_log_probs, states, actions, future_rewards)
-            
-            self.optimizer.zero_grad()
-            L.backward()
-            self.optimizer.step()
-            del L
+        # surrogate function (actor)
+        L = - self.surrogate(old_log_probs, states, actions, future_rewards)
+        
+        self.optimizer.zero_grad()
+        L.backward()
+        self.optimizer.step()
+        del L
         
         # decay epsilon and beta as we train
-        self.epsilon *= 0.999
-        self.beta *= 0.995
+        # self.epsilon *= 0.999
+        # self.beta *= 0.995

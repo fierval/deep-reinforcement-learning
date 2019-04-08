@@ -1,11 +1,12 @@
 from model import GaussianPolicyActor, ModelCritic
 import torch
 import numpy as np
+import time
 
 from unityagents import UnityEnvironment
 from agent import PPOAgent
 import tensorboardX
-from utils import RewardTracker
+from utils import RewardTracker, TBMeanTracker
 from trajectories import TrajectoryCollector
 
 LR = 1e-04              # learing rate
@@ -17,6 +18,8 @@ TMAX = 300              # maximum trajectory length
 MAX_EPISODES = 5000     # episodes
 AVG_WIN = 100           # moving average over...
 SEED = 1                # leave everything to chance
+BATCH_SIZE = 64         # number of tgajectories to collect for learning
+SOLVED_SCORE = 0.5      # score at which we are done
 
 if __name__ == "__main__":
     env = UnityEnvironment(file_name="Tennis_Win/Tennis")
@@ -49,12 +52,54 @@ if __name__ == "__main__":
     
     # create agents
     agents = []
-    trajectories = TrajectoryCollector(env, policy, num_agents, tmax=TMAX)
+    trajectory_collector = TrajectoryCollector(env, policy, num_agents, tmax=TMAX)
+    tb_tracker = TBMeanTracker(writer, 1)
 
     for i in range(1, num_agents + 1):
-        agents.append(PPOAgent(i, policy, optimizer, policy_critic, optimizer_critic, EPOCHS, EPSILON, BETA))
+        agents.append(PPOAgent(i, policy, optimizer, policy_critic, optimizer_critic, tb_tracker, EPSILON, BETA))
+
+    n_episodes = 0
+    max_score = - np.Inf
 
     with RewardTracker(writer, mean_window=AVG_WIN) as reward_tracker:
-        while True:
 
-    
+        while True:
+            
+            trajectories = [[]] * num_agents
+            start = time.time()
+            for _ in range(BATCH_SIZE):
+                trajectories_step = trajectory_collector.create_trajectories()
+
+                for i in range(num_agents):
+                    trajectories[i].append(trajectories_step[i])
+
+            for epoch in range(EPOCHS):
+                for i, agent in enumerate(agents):
+                    agent.learn(trajectories[i])
+
+            end_time = time.time()
+
+            rewards = trajectory_collector.scores_by_episode[n_episodes : ]
+
+            for idx_r, reward in enumerate(rewards):
+                mean_reward = reward_tracker.reward(reward, n_episodes + idx_r, (end_time - start) / 1000.)
+
+                if mean_reward is not None and max_score < mean_reward:
+                    if max_score >= SOLVED_SCORE:
+                        torch.save(policy.state_dict(), f'p3_collab-compet/checkpoint_actor_{mean_reward:.03f}.pth')
+                        torch.save(policy_critic.state_dict(), f'p3_collab-compet/checkpoint_critic_{mean_reward:.03f}.pth')
+
+                    max_score = mean_reward
+
+                    if mean_reward is not None and mean_reward >=  SOLVED_SCORE:
+                        solved_episode = n_episodes + idx_r - AVG_WIN - 1
+                        print(f"Solved in {solved_episode if solved_episode > 0 else n_episodes + idx_r} episodes")
+                        break
+
+            n_episodes += len(rewards)
+            if n_episodes >= MAX_EPISODES:
+                print(f"Environment not solved")
+                break
+
+
+
