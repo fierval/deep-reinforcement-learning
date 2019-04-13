@@ -15,11 +15,11 @@ LR_CRITIC = 1e-03       # learning rate critic
 EPSILON = 0.1           # action clipping param: [1-EPSILON, 1+EPSILON]
 BETA = 0.01             # regularization parameter for entropy term
 EPOCHS = 4              # train for this number of epochs at a time
-TMAX = 300              # maximum trajectory length
+TMAX = 3              # maximum trajectory length
 MAX_EPISODES = 5000     # episodes
 AVG_WIN = 100           # moving average over...
 SEED = 1                # leave everything to chance
-BATCH_SIZE = 64         # number of tgajectories to collect for learning
+BATCH_SIZE = 2         # number of tgajectories to collect for learning
 SOLVED_SCORE = 0.5      # score at which we are done
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -65,13 +65,17 @@ if __name__ == "__main__":
     n_episodes = 0
     max_score = - np.Inf
 
+    traj_attributes = ["log_probs", "entropy", "states", "actions", "rewards", "dones"]
     with RewardTracker(writer, mean_window=AVG_WIN) as reward_tracker:
 
         while True:
             
-            trajectories = [[]] * num_agents
+            trajectories = []
+            for i in range(num_agents):
+                trajectories.append([])
+                
             start = time.time()
-            for _ in range(BATCH_SIZE):
+            for j in range(BATCH_SIZE):
                 trajectories_step = trajectory_collector.create_trajectories()
 
                 for i in range(num_agents):
@@ -79,8 +83,17 @@ if __name__ == "__main__":
 
             for epoch in range(EPOCHS):
                 for i, agent in enumerate(agents):
-                    traj = torch.cat(trajectories[i], dim=0)
-                    agent.learn(traj)
+                    old_log_probs, entropies, states, actions, rewards, dones = [], [], [], [], [], []
+                    traj_values = old_log_probs, entropies, states, actions, rewards, dones
+                    
+                    # convert lists of dictionaries to tensors
+                    for t in trajectories[i]:
+                        for k, t_attr in enumerate(traj_attributes):
+                            traj_values[k].append(t[t_attr])
+                    for t_value in traj_values:
+                        t_value = torch.cat(t_value, dim=0)
+
+                    agent.learn(old_log_probs, entropies, states, actions, rewards, dones)
 
             end_time = time.time()
 

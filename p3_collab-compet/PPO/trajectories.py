@@ -14,17 +14,17 @@ class TrajectoryCollector:
             "rewards", "log_probs", "entropy", "dones",
         ]
 
-    def __init__(self, env, policy, num_agents, tmax=300):
+    def __init__(self, env, policy, num_agents, tmax=3):
         self.env = env
         self.policy = policy
         self.num_agents = num_agents
-        self.idx_me = torch.tensor([index+1 for index in range(num_agents)], dtype=torch.float).unsqueeze(0).to(device)
+        self.idx_me = torch.tensor([index+1 for index in range(num_agents)], dtype=torch.float).unsqueeze(1).to(device)
         self.tmax = tmax
 
         self.rewards = None
         self.scores_by_episode = []
         self.brain_name = None
-        self.last_states = [[]] * self.num_agents
+        self.last_states = None
         self.reset()
         
     @staticmethod
@@ -46,32 +46,29 @@ class TrajectoryCollector:
         """
 
         buffer = []
+        self.policy.eval()
         # tempting to write this as as [{{k: [] for k in self.buffer_attrs}}] * self.num_agents, but it's a bug! :)
         for i in range(self.num_agents):
             buffer.append({k: [] for k in self.buffer_attrs})
 
         # split trajectory between agents
         for _ in range(self.tmax):
-            all_memory = [{}] * self.num_agents
-
-            for i in range(self.num_agents):
-                memory = all_memory[i]
-
-                # draw action from model
-                memory["states"] = self.last_states[i].unsqueeze(0)
-                memory["actions"], memory["log_probs"], memory["entropy"], _ = self.policy(memory["states"], self.idx_me[:, i].unsqueeze(0))
-
             # in order to collect all actions and all rewards we now need to join predicted actions and pipe them 
             # through the environment
-            all_actions = torch.cat([memory["actions"] for memory in all_memory], dim=0)
+            states = self.last_states
+            actions, log_probs, entropies, _ = self.policy(states, self.idx_me)
 
-            # one step forward
-            actions_np = all_actions.detach().cpu().numpy()
+            # one step forward. We need to move actions to host
+            # so we can feed them to the environment
+            actions_np = actions.cpu().numpy()
 
             env_info = self.env.step(actions_np)[self.brain_name]
 
             for i in range(self.num_agents):
-                memory = all_memory[i]
+                memory = {}
+                memory["states"] = states[i]
+                memory["actions"], memory["log_probs"], memory["entropy"] = \
+                    actions[i].unsqueeze(0), log_probs[i].unsqueeze(0), entropies[i].unsqueeze(0)
 
                 memory["next_states"] = self.to_tensor(env_info.vector_observations[i]).unsqueeze(0)
                 memory["rewards"] = self.to_tensor(env_info.rewards[i]).unsqueeze(0)
@@ -99,4 +96,5 @@ class TrajectoryCollector:
             for k, v in b.items():
                 b[k] = torch.cat(v, dim=0)
 
+        self.policy.train()
         return buffer    

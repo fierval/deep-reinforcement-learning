@@ -114,15 +114,17 @@ class PPOAgent():
         # this is desirable because we have normalized our rewards
         return torch.mean(clipped_surrogate + self.beta*entropy)
 
-    def learn(self, trajectories):
-        """Run the surrogate function for a few epochs
-
-        Params
-        ======
-            trajectories (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
+    def learn(self, old_log_probs, entropies, states, actions, rewards, dones):
+        """[summary]
+        
+        Arguments:
+            old_log_probs {[type]} -- log probabilities
+            entropies {[type]} -- entropies
+            states {[type]} -- states
+            actions {[type]} -- actions
+            rewards {[type]} -- rewards
+            dones {[type]} -- dones
         """
-        old_log_probs, states, actions, rewards, dones = \
-            trajectories["log_probs"], trajectories["states"], trajectories["actions"], trajectories["rewards"], trajectories["dones"]
 
         adv_v, ref_v, values_v = self.calc_adv_ref(rewards, states, dones)
         values_v = values_v.squeeze(-1)
