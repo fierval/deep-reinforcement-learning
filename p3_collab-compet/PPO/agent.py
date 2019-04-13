@@ -121,7 +121,7 @@ class PPOAgent():
         ======
             trajectories (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
         """
-        old_log_probs, states, actions, rewards, dones = 
+        old_log_probs, states, actions, rewards, dones = \
             trajectories["log_probs"], trajectories["states"], trajectories["actions"], trajectories["rewards"], trajectories["dones"]
 
         adv_v, ref_v, values_v = self.calc_adv_ref(rewards, states, dones)
