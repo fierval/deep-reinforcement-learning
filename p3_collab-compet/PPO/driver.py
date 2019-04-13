@@ -2,6 +2,7 @@ from model import GaussianPolicyActor, ModelCritic
 import torch
 import numpy as np
 import time
+import os
 
 from unityagents import UnityEnvironment
 from agent import PPOAgent
@@ -21,8 +22,11 @@ SEED = 1                # leave everything to chance
 BATCH_SIZE = 64         # number of tgajectories to collect for learning
 SOLVED_SCORE = 0.5      # score at which we are done
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 if __name__ == "__main__":
-    env = UnityEnvironment(file_name="Tennis_Win/Tennis")
+    
+    env = UnityEnvironment(file_name="p3_collab-compet/Tennis_Linux/Tennis.x86_64")
 
     brain_name = env.brain_names[0]
     brain = env.brains[brain_name]
@@ -42,13 +46,13 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
 
     # create policy to be trained & optimizer
-    policy = GaussianPolicyActor(state_size, action_size)
+    policy = GaussianPolicyActor(state_size, action_size).to(device)
     optimizer = torch.optim.Adam(policy.parameters(), lr=LR)
 
-    policy_critic = ModelCritic(state_size)
+    policy_critic = ModelCritic(state_size).to(device)
     optimizer_critic = torch.optim.Adam(policy_critic.parameters(), lr=LR_CRITIC)
 
-    writer = tensorboardX.SummaryWriter(comment="-mappo")
+    writer = tensorboardX.SummaryWriter("p3_collab-compet/runs", comment="-mappo")
     
     # create agents
     agents = []

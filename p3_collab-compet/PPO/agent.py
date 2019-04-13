@@ -37,7 +37,7 @@ class PPOAgent():
         self.epsilon = epsilon
         
         # extra parameter to be added to states
-        self.idx_me = torch.ones(self.policy.state_dim).unsqueeze(1).to(device) * index
+        self.idx_me = torch.tensor([index]).unsqueeze(0).to(device)
 
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0

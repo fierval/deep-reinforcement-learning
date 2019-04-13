@@ -18,7 +18,7 @@ class TrajectoryCollector:
         self.env = env
         self.policy = policy
         self.num_agents = num_agents
-        self.idx_me = [torch.ones(self.policy.state_dim).unsqueeze(1).to(device) * (index + 1) for index in range(num_agents)]
+        self.idx_me = torch.tensor([index+1 for index in range(num_agents)], dtype=torch.float).unsqueeze(0).to(device)
         self.tmax = tmax
 
         self.rewards = []
@@ -30,18 +30,6 @@ class TrajectoryCollector:
     @staticmethod
     def to_tensor(x, dtype=np.float32):
         return torch.from_numpy(np.array(x).astype(dtype)).to(device)
-
-    def act(self, state, idx):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
-
-        self.policy.eval()
-        with torch.no_grad():
-            _, dist = self.policy(state, self.idx_me)
-            actions = torch.clamp(dist.sample(), -1, 1)
-            pred = actions, dist.log_prob(actions).sum(-1).unsqueeze(-1)
-        self.policy.train()
-
-        return pred
 
     def reset(self):
         self.brain_name = self.env.brain_names[0]
@@ -61,18 +49,26 @@ class TrajectoryCollector:
         # split trajectory between agents
         for _ in range(self.tmax):
             all_memory = [{}] * self.num_agents
-            env_info = self.env.step(actions_np)[self.brain_name]
 
-            for i in range(self.num_agents):    
+            for i in range(self.num_agents):
                 memory = all_memory[i]
 
                 # draw action from model
-                memory["states"] = self.last_states
-                memory["actions"], memory["log_probs"] = self.policy(memory["states"], self.idx_me)
-                
-                # one step forward
-                actions_np = memory["actions"].cpu().numpy()
-                
+                memory["states"] = self.last_states[i].unsqueeze(0)
+                memory["actions"], memory["log_probs"], _, _ = self.policy(memory["states"], self.idx_me[:, i].unsqueeze(0))
+
+            # in order to collect all actions and all rewards we now need to join predicted actions and pipe them 
+            # through the environment
+            all_actions = torch.cat([memory["actions"] for memory in all_memory], dim=0)
+
+            # one step forward
+            actions_np = all_actions.detach().cpu().numpy()
+
+            env_info = self.env.step(actions_np)[self.brain_name]
+
+            for i in range(self.num_agents):
+                memory = all_memory[i]
+
                 memory["next_states"] = self.to_tensor(env_info.vector_observations[i]).unsqueeze(0)
                 memory["rewards"] = self.to_tensor(env_info.rewards[i]).unsqueeze(0)
                 memory["dones"] = self.to_tensor(env_info.local_done[i], dtype=np.uint8).unsqueeze(0)

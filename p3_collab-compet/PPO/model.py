@@ -21,12 +21,32 @@ class GaussianPolicyActor(nn.Module):
         )
         self.logstd = nn.Parameter(torch.zeros(act_size))
 
-    def forward(self, x, idx):
+    def forward(self, x, idx, actions=None):
+        """
+        Inspired by: https://github.com/tnakae/Udacity-DeepRL-p3-collab-compet/blob/master/PPO/network.py
+        
+        Arguments:
+            x {tensor} -- state
+            idx {tensor} -- agent id
+        
+        Keyword Arguments:
+            actions {tensor} -- [actions, if any] (default: {None})
+        
+        Returns:
+            [tensor] -- [actions, log_prob, entropy, distribution]
+        """
+
         x = torch.cat((x, idx), dim = 1)
 
         mean = self.mu(x)
         dist = torch.distributions.Normal(mean, F.softplus(self.logstd))
-        return mean, dist
+
+        if actions is None:
+            actions = dist.sample()
+        log_prob = dist.log_prob(actions)
+        log_prob = torch.sum(log_prob, dim=-1)
+        entropy = torch.sum(dist.entropy(), dim=-1)
+        return actions, log_prob, entropy, dist
 
 class ModelCritic(nn.Module):
     def __init__(self, obs_size):
