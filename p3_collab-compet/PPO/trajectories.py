@@ -11,7 +11,7 @@ class TrajectoryCollector:
     """
     buffer_attrs = [
             "states", "actions", "next_states",
-            "rewards", "log_probs", "dones",
+            "rewards", "log_probs", "entropy", "dones",
         ]
 
     def __init__(self, env, policy, num_agents, tmax=300):
@@ -21,7 +21,7 @@ class TrajectoryCollector:
         self.idx_me = torch.tensor([index+1 for index in range(num_agents)], dtype=torch.float).unsqueeze(0).to(device)
         self.tmax = tmax
 
-        self.rewards = []
+        self.rewards = None
         self.scores_by_episode = []
         self.brain_name = None
         self.last_states = [[]] * self.num_agents
@@ -44,7 +44,11 @@ class TrajectoryCollector:
         Returns:
         A list  of dictionaries, where each list contains a trajectory for its agent
         """
-        buffer = [{k: [] for k in self.buffer_attrs}] * self.num_agents
+
+        buffer = []
+        # tempting to write this as as [{{k: [] for k in self.buffer_attrs}}] * self.num_agents, but it's a bug! :)
+        for i in range(self.num_agents):
+            buffer.append({k: [] for k in self.buffer_attrs})
 
         # split trajectory between agents
         for _ in range(self.tmax):
@@ -55,7 +59,7 @@ class TrajectoryCollector:
 
                 # draw action from model
                 memory["states"] = self.last_states[i].unsqueeze(0)
-                memory["actions"], memory["log_probs"], _, _ = self.policy(memory["states"], self.idx_me[:, i].unsqueeze(0))
+                memory["actions"], memory["log_probs"], memory["entropy"], _ = self.policy(memory["states"], self.idx_me[:, i].unsqueeze(0))
 
             # in order to collect all actions and all rewards we now need to join predicted actions and pipe them 
             # through the environment
@@ -75,9 +79,9 @@ class TrajectoryCollector:
 
                 # stack one step memory to buffer
                 for k, v in memory.items():
-                    buffer[i][k].append(v.unsqueeze(0))
+                    buffer[i][k].append(v)
 
-            self.last_states = np.array(env_info.vector_observations)[None, :]
+            self.last_states = self.to_tensor(env_info.vector_observations)
 
             r = np.array(env_info.rewards)[None,:]
             if self.rewards is None:
@@ -85,7 +89,7 @@ class TrajectoryCollector:
             else:
                 self.rewards = np.r_[self.rewards, r]
 
-            if env_info.local_done.any():
+            if np.array(env_info.local_done).any():
                 rewards_mean = self.rewards.max(axis=0).mean()
                 self.scores_by_episode.append(rewards_mean)
                 self.rewards = None
