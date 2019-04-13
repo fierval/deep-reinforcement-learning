@@ -9,6 +9,7 @@ from agent import PPOAgent
 import tensorboardX
 from utils import RewardTracker, TBMeanTracker
 from trajectories import TrajectoryCollector
+from collections import defaultdict
 
 LR = 1e-04              # learing rate
 LR_CRITIC = 1e-03       # learning rate critic
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     n_episodes = 0
     max_score = - np.Inf
 
-    traj_attributes = ["log_probs", "entropy", "states", "actions", "rewards", "dones"]
+    traj_attributes = ["log_probs", "states", "next_states", "actions", "rewards", "dones"]
     with RewardTracker(writer, mean_window=AVG_WIN) as reward_tracker:
 
         while True:
@@ -75,25 +76,32 @@ if __name__ == "__main__":
                 trajectories.append([])
                 
             start = time.time()
-            for j in range(BATCH_SIZE):
-                trajectories_step = trajectory_collector.create_trajectories()
+            trajectories = trajectory_collector.create_trajectories()
 
-                for i in range(num_agents):
-                    trajectories[i].append(trajectories_step[i])
+            n_samples = trajectories[0]['actions'].shape[0]
+            n_batches = int((n_samples + 1) / BATCH_SIZE)
 
+            # train agents in a round-robin for the number of epochs
             for epoch in range(EPOCHS):
-                for i, agent in enumerate(agents):
-                    old_log_probs, entropies, states, actions, rewards, dones = [], [], [], [], [], []
-                    traj_values = old_log_probs, entropies, states, actions, rewards, dones
-                    
-                    # convert lists of dictionaries to tensors
-                    for t in trajectories[i]:
-                        for k, t_attr in enumerate(traj_attributes):
-                            traj_values[k].append(t[t_attr])
-                    for t_value in traj_values:
-                        t_value = torch.cat(t_value, dim=0)
 
-                    agent.learn(old_log_probs, entropies, states, actions, rewards, dones)
+                for batch in range(n_batches):
+                    # convert lists of dictionaries to tensors
+                    
+                    idx_start = BATCH_SIZE * batch
+                    idx_end = idx_start + BATCH_SIZE
+
+                    for i, agent in enumerate(agents):
+                        traj_values = defaultdict(list)
+                        
+                        for k,v in trajectories[i].items():
+                            traj_values[k].append(v[idx_start : idx_end])
+
+                        for k, v in traj_values.items():
+                            traj_values[k] = torch.cat(v, dim=0)
+
+                        old_log_probs, states, next_states, actions, rewards, dones = \
+                            [traj_values[k][idx_start : idx_end] for k in traj_attributes]
+                        agent.learn(old_log_probs, states, actions, rewards, dones)
 
             end_time = time.time()
 

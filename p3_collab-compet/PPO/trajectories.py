@@ -11,7 +11,7 @@ class TrajectoryCollector:
     """
     buffer_attrs = [
             "states", "actions", "next_states",
-            "rewards", "log_probs", "entropy", "dones",
+            "rewards", "log_probs", "dones",
         ]
 
     def __init__(self, env, policy, num_agents, tmax=3):
@@ -46,7 +46,7 @@ class TrajectoryCollector:
         """
 
         buffer = []
-        self.policy.eval()
+        
         # tempting to write this as as [{{k: [] for k in self.buffer_attrs}}] * self.num_agents, but it's a bug! :)
         for i in range(self.num_agents):
             buffer.append({k: [] for k in self.buffer_attrs})
@@ -56,19 +56,18 @@ class TrajectoryCollector:
             # in order to collect all actions and all rewards we now need to join predicted actions and pipe them 
             # through the environment
             states = self.last_states
-            actions, log_probs, entropies, _ = self.policy(states, self.idx_me)
+            actions, log_probs, _ = self.policy(states, self.idx_me)
 
             # one step forward. We need to move actions to host
             # so we can feed them to the environment
-            actions_np = actions.cpu().numpy()
+            actions_np = actions.detach().cpu().numpy()
 
             env_info = self.env.step(actions_np)[self.brain_name]
 
             for i in range(self.num_agents):
                 memory = {}
                 memory["states"] = states[i]
-                memory["actions"], memory["log_probs"], memory["entropy"] = \
-                    actions[i].unsqueeze(0), log_probs[i].unsqueeze(0), entropies[i].unsqueeze(0)
+                memory["actions"], memory["log_probs"]= actions[i].unsqueeze(0), log_probs[i].unsqueeze(0)
 
                 memory["next_states"] = self.to_tensor(env_info.vector_observations[i]).unsqueeze(0)
                 memory["rewards"] = self.to_tensor(env_info.rewards[i]).unsqueeze(0)
@@ -96,5 +95,4 @@ class TrajectoryCollector:
             for k, v in b.items():
                 b[k] = torch.cat(v, dim=0)
 
-        self.policy.train()
         return buffer    

@@ -114,12 +114,11 @@ class PPOAgent():
         # this is desirable because we have normalized our rewards
         return torch.mean(clipped_surrogate + self.beta*entropy)
 
-    def learn(self, old_log_probs, entropies, states, actions, rewards, dones):
+    def learn(self, old_log_probs, states, actions, rewards, dones):
         """[summary]
         
         Arguments:
             old_log_probs {[type]} -- log probabilities
-            entropies {[type]} -- entropies
             states {[type]} -- states
             actions {[type]} -- actions
             rewards {[type]} -- rewards
@@ -139,7 +138,7 @@ class PPOAgent():
         self.optimizer_critic.step()
 
         # surrogate function (actor)
-        L = - self.surrogate(old_log_probs, states, actions, future_rewards)
+        L = - self.surrogate(old_log_probs, entropies, states, actions, future_rewards)
         
         self.optimizer.zero_grad()
         L.backward()
