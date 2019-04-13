@@ -79,7 +79,8 @@ if __name__ == "__main__":
 
             for epoch in range(EPOCHS):
                 for i, agent in enumerate(agents):
-                    agent.learn(trajectories[i])
+                    traj = torch.cat(trajectories[i], dim=0)
+                    agent.learn(traj)
 
             end_time = time.time()
 
