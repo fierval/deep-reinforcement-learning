@@ -34,7 +34,8 @@ class PPOAgent():
         self.epsilon = epsilon
         
         # extra parameter to be added to states
-        self.idx_me = torch.tensor([index]).unsqueeze(0).to(device)
+        self.idx_me = None
+        self.index = index
 
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
@@ -92,7 +93,8 @@ class PPOAgent():
             rewards {[type]} -- rewards
             dones {[type]} -- dones
         """
-
+        self.idx_me = (torch.ones((states.shape[0], 1)) * self.index).to(device)
+        
         future_rewards = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1.e-10)
         
         # v-function (critic)
