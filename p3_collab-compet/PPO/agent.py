@@ -4,9 +4,6 @@ import torch
 import torch.nn.functional as F
 import math
 
-GAMMA = 0.99            # discount factor
-GAE_LAMBDA = 0.95       # lambda-factor in the advantage estimator for PPO
-
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class PPOAgent():
@@ -41,35 +38,6 @@ class PPOAgent():
 
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
-
-    def calc_adv_ref(self, rewards, states, dones):
-        """
-        By trajectory calculate advantage and 1-step ref value
-        :param rewards: rewards list
-        :param net_crt: critic network
-        :param states: states list
-        :return: tuple with advantage numpy array and reference values
-        """
-        values_v = self.policy_critic(states.from_numpy(dtype=torch.float).to(device))
-        values = values_v.squeeze().data.cpu().numpy()
-
-        # generalized advantage estimator: smoothed version of the advantage
-        last_gae = 0.0
-        result_adv = []
-        result_ref = []
-        for val, next_val, reward, done in zip(reversed(values[:-1]), reversed(values[1:]), reversed(rewards[:-1]), reversed(dones[:-1])):
-            if done:
-                delta = reward - val
-                last_gae = delta
-            else:
-                delta = reward + GAMMA * next_val - val
-                last_gae = delta + GAMMA * GAE_LAMBDA * last_gae
-                result_adv.append(last_gae)
-                result_ref.append(last_gae + val)
-
-        adv_v = torch.FloatTensor(list(reversed(result_adv))).to(device)
-        ref_v = torch.FloatTensor(list(reversed(result_ref))).to(device)
-        return adv_v, ref_v, values_v
 
     def calc_logprob(self, dist, actions_v):
         logprob = dist.log_prob(actions_v).sum(-1).unsqueeze(-1)
@@ -114,7 +82,7 @@ class PPOAgent():
         # this is desirable because we have normalized our rewards
         return torch.mean(clipped_surrogate + self.beta*entropy)
 
-    def learn(self, old_log_probs, states, actions, rewards, dones):
+    def learn(self, old_log_probs, states, actions, advantages, returns, values):
         """[summary]
         
         Arguments:
@@ -125,20 +93,17 @@ class PPOAgent():
             dones {[type]} -- dones
         """
 
-        adv_v, ref_v, values_v = self.calc_adv_ref(rewards, states, dones)
-        values_v = values_v.squeeze(-1)
-
-        future_rewards = (adv_v - torch.mean(adv_v)) / (torch.std(adv_v) + 1.e-10)
+        future_rewards = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1.e-10)
         
         # v-function (critic)
         self.optimizer_critic.zero_grad()
 
-        loss_values = F.mse_loss(values_v, ref_v)
+        loss_values = F.mse_loss(values, returns)
         loss_values.backward()
         self.optimizer_critic.step()
 
         # surrogate function (actor)
-        L = - self.surrogate(old_log_probs, entropies, states, actions, future_rewards)
+        L = - self.surrogate(old_log_probs, states, actions, future_rewards)
         
         self.optimizer.zero_grad()
         L.backward()

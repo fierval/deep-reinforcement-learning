@@ -23,6 +23,9 @@ SEED = 1                # leave everything to chance
 BATCH_SIZE = 2         # number of tgajectories to collect for learning
 SOLVED_SCORE = 0.5      # score at which we are done
 
+GAMMA = 0.99            # discount factor
+GAE_LAMBDA = 0.95       # lambda-factor in the advantage estimator for PPO
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
@@ -66,15 +69,12 @@ if __name__ == "__main__":
     n_episodes = 0
     max_score = - np.Inf
 
-    traj_attributes = ["log_probs", "states", "next_states", "actions", "rewards", "dones"]
+    traj_attributes = trajectory_collector.buffer_attrs
+
     with RewardTracker(writer, mean_window=AVG_WIN) as reward_tracker:
 
         while True:
             
-            trajectories = []
-            for i in range(num_agents):
-                trajectories.append([])
-                
             start = time.time()
             trajectories = trajectory_collector.create_trajectories()
 
@@ -99,9 +99,12 @@ if __name__ == "__main__":
                         for k, v in traj_values.items():
                             traj_values[k] = torch.cat(v, dim=0)
 
-                        old_log_probs, states, next_states, actions, rewards, dones = \
+                        states, actions, next_states, \
+                        rewards, old_log_probs, dones,
+                        values, advantages, returns = \
                             [traj_values[k][idx_start : idx_end] for k in traj_attributes]
-                        agent.learn(old_log_probs, states, actions, rewards, dones)
+                            
+                        agent.learn(old_log_probs, states, actions, advantages, returns, values)
 
             end_time = time.time()
 

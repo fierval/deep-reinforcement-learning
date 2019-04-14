@@ -12,15 +12,20 @@ class TrajectoryCollector:
     buffer_attrs = [
             "states", "actions", "next_states",
             "rewards", "log_probs", "dones",
+            "values", "advantages", "returns"
         ]
 
-    def __init__(self, env, policy, num_agents, tmax=3):
+    def __init__(self, env, policy, policy_critic, num_agents, tmax=3, gamma = 0.99, gae_lambda = 0.95):
         self.env = env
         self.policy = policy
+        self.policy_critic = policy_critic
         self.num_agents = num_agents
         self.idx_me = torch.tensor([index+1 for index in range(num_agents)], dtype=torch.float).unsqueeze(1).to(device)
-        self.tmax = tmax
 
+        self.tmax = tmax
+        self.gae_lambda = gae_lambda
+        self.gamma = gamma
+        
         self.rewards = None
         self.scores_by_episode = []
         self.brain_name = None
@@ -35,6 +40,36 @@ class TrajectoryCollector:
         self.brain_name = self.env.brain_names[0]
         env_info = self.env.reset(train_mode=True)[self.brain_name]
         self.last_states = self.to_tensor(env_info.vector_observations)
+
+    def calc_returns(self, rewards, values, dones, last_values):
+        n_step, n_agent = rewards.shape
+
+        # Create empty buffer
+        GAE = torch.zeros_like(rewards).float().to(self.device)
+        returns = torch.zeros_like(rewards).float().to(self.device)
+
+        # Set start values
+        GAE_current = torch.zeros(n_agent).float().to(self.device)
+        returns_current = last_values
+        values_next = last_values
+
+        for irow in reversed(range(n_step)):
+            values_current = values[irow]
+            rewards_current = rewards[irow]
+            gamma = self.gamma * (1. - dones[irow].float())
+
+            # Calculate TD Error
+            td_error = rewards_current + gamma * values_next - values_current
+            # Update GAE, returns
+            GAE_current = td_error + gamma * self.gae_lambda * GAE_current
+            returns_current = rewards_current + gamma * returns_current
+            # Set GAE, returns to buffer
+            GAE[irow] = GAE_current
+            returns[irow] = returns_current
+
+            values_next = values_current
+
+        return GAE, returns
 
     def create_trajectories(self):
         """
@@ -57,6 +92,7 @@ class TrajectoryCollector:
             # through the environment
             states = self.last_states
             actions, log_probs, _ = self.policy(states, self.idx_me)
+            values = self.policy_critic(states)
 
             # one step forward. We need to move actions to host
             # so we can feed them to the environment
@@ -68,11 +104,12 @@ class TrajectoryCollector:
                 memory = {}
                 memory["states"] = states[i]
                 memory["actions"], memory["log_probs"]= actions[i].unsqueeze(0), log_probs[i].unsqueeze(0)
+                memory["values"] = values.unsqueeze(0)
 
                 memory["next_states"] = self.to_tensor(env_info.vector_observations[i]).unsqueeze(0)
                 memory["rewards"] = self.to_tensor(env_info.rewards[i]).unsqueeze(0)
                 memory["dones"] = self.to_tensor(env_info.local_done[i], dtype=np.uint8).unsqueeze(0)
-
+                
                 # stack one step memory to buffer
                 for k, v in memory.items():
                     buffer[i][k].append(v)
@@ -91,8 +128,10 @@ class TrajectoryCollector:
                 self.rewards = None
                 self.reset()
 
-        for b in buffer:
-            for k, v in b.items():
-                b[k] = torch.cat(v, dim=0)
+        # append returns and advantages
+        values = self.policy_critic(self.last_states)
+
+        for b in buffers:
+            b["advantages"], b["returns"] = self.calc_returns(b["rewards"], b["values"], b["dones"], values[i, :])
 
         return buffer    
