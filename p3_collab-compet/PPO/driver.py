@@ -91,20 +91,14 @@ if __name__ == "__main__":
                     idx_end = idx_start + BATCH_SIZE
 
                     for i, agent in enumerate(agents):
-                        traj_values = defaultdict(list)
-                        
-                        for k,v in trajectories[i].items():
-                            traj_values[k].append(v[idx_start : idx_end])
+                        traj_values = trajectories[i]
 
                         # select the batch of trajectory entries
                         params = [traj_values[k][idx_start : idx_end] for k in traj_attributes]
 
-                        for i in range(len(params)):
-                            params[i] = torch.cat(params[i], dim=0)
-
                         (states, actions, next_states, \
-                                                rewards, old_log_probs, dones,
-                                                values, advantages, returns) = params
+                        rewards, old_log_probs, dones,
+                        values, advantages, returns) = params
 
                         # we like all tensors to be shaped (batch_size, value_dims)                                                
                         returns = returns.unsqueeze(1)
