@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-HID_SIZE = 64
+HID_SIZE = 128
 
 class GaussianPolicyActor(nn.Module):
     def __init__(self, obs_size, act_size):

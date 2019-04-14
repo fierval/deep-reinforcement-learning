@@ -60,7 +60,7 @@ if __name__ == "__main__":
     
     # create agents
     agents = []
-    trajectory_collector = TrajectoryCollector(env, policy, num_agents, tmax=TMAX)
+    trajectory_collector = TrajectoryCollector(env, policy, policy_critic, num_agents, tmax=TMAX, gamma=GAMMA, gae_lambda=GAE_LAMBDA)
     tb_tracker = TBMeanTracker(writer, 1)
 
     for i in range(1, num_agents + 1):
@@ -96,14 +96,20 @@ if __name__ == "__main__":
                         for k,v in trajectories[i].items():
                             traj_values[k].append(v[idx_start : idx_end])
 
-                        for k, v in traj_values.items():
-                            traj_values[k] = torch.cat(v, dim=0)
+                        # select the batch of trajectory entries
+                        params = [traj_values[k][idx_start : idx_end] for k in traj_attributes]
 
-                        states, actions, next_states, \
-                        rewards, old_log_probs, dones,
-                        values, advantages, returns = \
-                            [traj_values[k][idx_start : idx_end] for k in traj_attributes]
-                            
+                        for i in range(len(params)):
+                            params[i] = torch.cat(params[i], dim=0)
+
+                        (states, actions, next_states, \
+                                                rewards, old_log_probs, dones,
+                                                values, advantages, returns) = params
+
+                        # we like all tensors to be shaped (batch_size, value_dims)                                                
+                        returns = returns.unsqueeze(1)
+                        advantages = advantages.unsqueeze(1)
+                                                
                         agent.learn(old_log_probs, states, actions, advantages, returns, values)
 
             end_time = time.time()

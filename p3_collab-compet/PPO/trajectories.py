@@ -25,7 +25,7 @@ class TrajectoryCollector:
         self.tmax = tmax
         self.gae_lambda = gae_lambda
         self.gamma = gamma
-        
+
         self.rewards = None
         self.scores_by_episode = []
         self.brain_name = None
@@ -42,14 +42,15 @@ class TrajectoryCollector:
         self.last_states = self.to_tensor(env_info.vector_observations)
 
     def calc_returns(self, rewards, values, dones, last_values):
-        n_step, n_agent = rewards.shape
+        
+        n_step = len(rewards)
 
         # Create empty buffer
-        GAE = torch.zeros_like(rewards).float().to(self.device)
-        returns = torch.zeros_like(rewards).float().to(self.device)
+        GAE = torch.zeros(n_step).float().to(device)
+        returns = torch.zeros(n_step).float().to(device)
 
         # Set start values
-        GAE_current = torch.zeros(n_agent).float().to(self.device)
+        GAE_current = torch.zeros(1).float().to(device)
         returns_current = last_values
         values_next = last_values
 
@@ -102,9 +103,9 @@ class TrajectoryCollector:
 
             for i in range(self.num_agents):
                 memory = {}
-                memory["states"] = states[i]
+                memory["states"] = states[i].unsqueeze(0)
                 memory["actions"], memory["log_probs"]= actions[i].unsqueeze(0), log_probs[i].unsqueeze(0)
-                memory["values"] = values.unsqueeze(0)
+                memory["values"] = values[i].unsqueeze(0)
 
                 memory["next_states"] = self.to_tensor(env_info.vector_observations[i]).unsqueeze(0)
                 memory["rewards"] = self.to_tensor(env_info.rewards[i]).unsqueeze(0)
@@ -131,7 +132,12 @@ class TrajectoryCollector:
         # append returns and advantages
         values = self.policy_critic(self.last_states)
 
-        for b in buffers:
+        for i, b in enumerate(buffer):
             b["advantages"], b["returns"] = self.calc_returns(b["rewards"], b["values"], b["dones"], values[i, :])
+
+            for k, v in b.items():
+                if k in ["advantages", "returns"]:
+                    continue
+                b[k] = torch.cat(v, dim=0)
 
         return buffer    
