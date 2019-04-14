@@ -90,7 +90,7 @@ class TrajectoryCollector:
             buffer.append({k: [] for k in self.buffer_attrs})
 
         # split trajectory between agents
-        for _ in range(self.tmax):
+        for t in range(self.tmax):
             # in order to collect all actions and all rewards we now need to join predicted actions and pipe them 
             # through the environment
             states = self.last_states
@@ -128,7 +128,7 @@ class TrajectoryCollector:
                 self.rewards = np.r_[self.rewards, r]
 
             if np.array(env_info.local_done).any():
-                rewards_mean = self.rewards.max(axis=0).mean()
+                rewards_mean = self.rewards.sum(axis=0).max()
                 self.scores_by_episode.append(rewards_mean)
                 self.rewards = None
                 self.reset()
@@ -137,7 +137,7 @@ class TrajectoryCollector:
         # TODO: debug only
         if self.debug and self.rewards is not None:
             print("DEBUG: flushing rewards")
-            rewards_mean = self.rewards.max(axis=0).mean()
+            rewards_mean = self.rewards.sum(axis=0).max()
             self.scores_by_episode.append(rewards_mean)
             self.rewards = None
             self.reset()

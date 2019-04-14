@@ -11,13 +11,13 @@ from utils import RewardTracker, TBMeanTracker
 from trajectories import TrajectoryCollector
 from collections import defaultdict
 
-LR = 1e-04              # learing rate
+LR = 1e-03              # learing rate
 LR_CRITIC = 1e-03       # learning rate critic
 EPSILON = 0.1           # action clipping param: [1-EPSILON, 1+EPSILON]
 BETA = 0.01             # regularization parameter for entropy term
 EPOCHS = 20              # train for this number of epochs at a time
 TMAX = 1024              # maximum trajectory length
-MAX_EPISODES = 5000     # episodes
+MAX_EPISODES = 15000     # episodes
 AVG_WIN = 100           # moving average over...
 SEED = 1                # leave everything to chance
 BATCH_SIZE = 128         # number of tgajectories to collect for learning
@@ -31,8 +31,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
     
-    env = UnityEnvironment(file_name="p3_collab-compet/Tennis_Linux/Tennis.x86_64")
-
+    #env = UnityEnvironment(file_name="p3_collab-compet/Tennis_Linux/Tennis.x86_64")
+    env = UnityEnvironment(file_name="/home/boris/git/udacity/drl/p3_collab-compet/Tennis_Linux/Tennis.x86_64")
+    
     brain_name = env.brain_names[0]
     brain = env.brains[brain_name]
 
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     policy_critic = ModelCritic(state_size).to(device)
     optimizer_critic = torch.optim.Adam(policy_critic.parameters(), lr=LR_CRITIC)
 
-    writer = tensorboardX.SummaryWriter("p3_collab-compet/runs", comment="-mappo")
+    writer = tensorboardX.SummaryWriter(comment="-mappo")
     
     # create agents
     agents = []
@@ -86,14 +87,15 @@ if __name__ == "__main__":
             # train agents in a round-robin for the number of epochs
             for epoch in range(EPOCHS):
 
-                for batch in range(n_batches):
+                for i, agent in enumerate(agents):
+                
                     # convert lists of dictionaries to tensors
-                    
-                    idx_start = BATCH_SIZE * batch
-                    idx_end = idx_start + BATCH_SIZE
+                    traj_values = trajectories[i]
 
-                    for i, agent in enumerate(agents):
-                        traj_values = trajectories[i]
+                    for batch in range(n_batches):    
+
+                        idx_start = BATCH_SIZE * batch
+                        idx_end = idx_start + BATCH_SIZE
 
                         # select the batch of trajectory entries
                         params = [traj_values[k][idx_start : idx_end] for k in traj_attributes]

@@ -64,10 +64,22 @@ class TBMeanTracker:
             data.clear()
 
 class RewardTracker:
-    def __init__(self, writer, mean_window = 100):
+
+    def __init__(self, writer, mean_window = 100, print_every=30):
+        """Reward Tracing
+        
+        Arguments:
+            writer {tensorboardX} -- tensorboard saver
+        
+        Keyword Arguments:
+            mean_window {int} -- sliding window for average rewards (default: {100})
+            print_every {int} -- how often to print things out (default: {30})
+        """
+
         self.writer = writer
         self.total_rewards = []
         self.mean_window = mean_window
+        self.print_every = print_every
 
     def __enter__(self):
         return self
@@ -79,9 +91,13 @@ class RewardTracker:
         self.total_rewards.append(reward)
         i_episode = len(self.total_rewards)
         mean_reward = np.mean(self.total_rewards[-self.mean_window :])
-        print("%d: reward %.3f, mean reward %.3f, duration %.2f s" % (
-            i_episode, reward, mean_reward, duration))
-        sys.stdout.flush()
+
+        # output every so often to stdout
+        if i_episode % self.print_every == 0:
+            print("%d: reward %.3f, mean reward %.3f, duration %.2f s" % (
+                i_episode, reward, mean_reward, duration))
+            sys.stdout.flush()
+
         if epsilon is not None:
             self.writer.add_scalar("epsilon", epsilon, frame)
         self.writer.add_scalar("reward_100", mean_reward, frame)

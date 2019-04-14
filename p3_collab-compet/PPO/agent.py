@@ -66,12 +66,14 @@ class PPOAgent():
         # clipped function
         clip = torch.clamp(ratio, 1-self.epsilon, 1+self.epsilon)
         clipped_surrogate = torch.min(ratio*rewards_normalized, clip*rewards_normalized)
+        clipped_surrogate_mean = torch.mean(clipped_surrogate)
+        entropy_mean = self.beta * torch.mean(entropy)
 
         # this returns an average of all the entries of the tensor
         # effective computing L_sur^clip / T
         # averaged over time-step and number of trajectories
         # this is desirable because we have normalized our rewards
-        return torch.mean(clipped_surrogate + self.beta*entropy)
+        return clipped_surrogate_mean + entropy_mean
 
     def learn(self, old_log_probs, states, actions, advantages, returns):
         """Learning step
@@ -90,7 +92,7 @@ class PPOAgent():
         torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 10.)        
         self.optimizer.step()
 
-        self.tb_tracker.track("loss_policy", L.to("cpu"), self.t_step)
+        self.tb_tracker.track(f"loss_policy_{self.index}", L.to("cpu"), self.t_step)
         del L
 
         # v-function (critic)
@@ -100,11 +102,11 @@ class PPOAgent():
         loss_values = F.mse_loss(values, returns)
         loss_values.backward()
         self.optimizer_critic.step()
-        self.tb_tracker.track("loss_value", loss_values.to("cpu"), self.t_step)
+        self.tb_tracker.track(f"loss_value_{self.index}", loss_values.to("cpu"), self.t_step)
 
         # decay epsilon and beta as we train
-        self.epsilon *= 0.9999
-        self.beta *= 0.9995
+        #self.epsilon *= 0.9999
+        #self.beta *= 0.9995
         self.t_step += 1
 
         

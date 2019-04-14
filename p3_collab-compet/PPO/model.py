@@ -4,6 +4,11 @@ import torch.nn.functional as F
 
 HID_SIZE = 512
 
+def xavier(sequential):
+    for layer in sequential:
+        if isinstance(layer, nn.Linear):
+            nn.init.xavier_uniform_(layer.weight.data)
+
 class GaussianPolicyActor(nn.Module):
     def __init__(self, obs_size, act_size):
         super().__init__()
@@ -16,12 +21,14 @@ class GaussianPolicyActor(nn.Module):
 
         self.mu = nn.Sequential(
             nn.Linear(obs_size + 1, hid_size),
-            nn.Tanh(),
+            nn.LeakyReLU(),
             nn.Linear(hid_size, hid_size_1),
-            nn.Tanh(),
+            nn.LeakyReLU(),
             nn.Linear(hid_size_1, act_size),
-            nn.Tanh(),
+            nn.LeakyReLU(),
         )
+
+        xavier(self.mu)                
         self.logstd = nn.Parameter(torch.zeros(act_size))
 
     def forward(self, x, idx, actions=None):
@@ -48,7 +55,8 @@ class GaussianPolicyActor(nn.Module):
             actions = dist.sample()
         log_prob = dist.log_prob(actions)
         log_prob = torch.sum(log_prob, dim=-1)
-        entropy = torch.sum(dist.entropy(), dim=-1)
+        entropy = dist.entropy()
+        entropy = torch.sum(entropy, dim=-1)
 
         return actions, log_prob, entropy
 
@@ -61,11 +69,13 @@ class ModelCritic(nn.Module):
 
         self.value = nn.Sequential(
             nn.Linear(obs_size, hid_size),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(hid_size, hid_size_1),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(hid_size_1, 1),
         )
+        
+        xavier(self.value)
 
     def forward(self, x):
         return self.value(x)
