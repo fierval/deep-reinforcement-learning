@@ -94,7 +94,7 @@ class PPOAgent():
             dones {[type]} -- dones
         """
         self.idx_me = (torch.ones((states.shape[0], 1)) * self.index).to(device)
-        
+
         future_rewards = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1.e-10)
         
         # v-function (critic)
@@ -113,5 +113,5 @@ class PPOAgent():
         del L
         
         # decay epsilon and beta as we train
-        # self.epsilon *= 0.999
-        # self.beta *= 0.995
+        self.epsilon *= 0.9999
+        self.beta *= 0.9995
