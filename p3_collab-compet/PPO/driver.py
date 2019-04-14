@@ -15,17 +15,18 @@ LR = 1e-04              # learing rate
 LR_CRITIC = 1e-03       # learning rate critic
 EPSILON = 0.1           # action clipping param: [1-EPSILON, 1+EPSILON]
 BETA = 0.01             # regularization parameter for entropy term
-EPOCHS = 4              # train for this number of epochs at a time
-TMAX = 3              # maximum trajectory length
+EPOCHS = 20              # train for this number of epochs at a time
+TMAX = 1024              # maximum trajectory length
 MAX_EPISODES = 5000     # episodes
 AVG_WIN = 100           # moving average over...
 SEED = 1                # leave everything to chance
-BATCH_SIZE = 2         # number of tgajectories to collect for learning
+BATCH_SIZE = 128         # number of tgajectories to collect for learning
 SOLVED_SCORE = 0.5      # score at which we are done
 
 GAMMA = 0.99            # discount factor
 GAE_LAMBDA = 0.95       # lambda-factor in the advantage estimator for PPO
 
+debug = False
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
@@ -60,8 +61,8 @@ if __name__ == "__main__":
     
     # create agents
     agents = []
-    trajectory_collector = TrajectoryCollector(env, policy, policy_critic, num_agents, tmax=TMAX, gamma=GAMMA, gae_lambda=GAE_LAMBDA)
-    tb_tracker = TBMeanTracker(writer, 1)
+    trajectory_collector = TrajectoryCollector(env, policy, policy_critic, num_agents, tmax=TMAX, gamma=GAMMA, gae_lambda=GAE_LAMBDA, debug=debug)
+    tb_tracker = TBMeanTracker(writer, EPOCHS)
 
     for i in range(1, num_agents + 1):
         agents.append(PPOAgent(i, policy, optimizer, policy_critic, optimizer_critic, tb_tracker, EPSILON, BETA))
@@ -69,13 +70,14 @@ if __name__ == "__main__":
     n_episodes = 0
     max_score = - np.Inf
 
-    traj_attributes = trajectory_collector.buffer_attrs
+    traj_attributes = ["states", "actions", "log_probs", "advantages", "returns"]
 
     with RewardTracker(writer, mean_window=AVG_WIN) as reward_tracker:
 
         while True:
             
             start = time.time()
+            
             trajectories = trajectory_collector.create_trajectories()
 
             n_samples = trajectories[0]['actions'].shape[0]
@@ -96,22 +98,20 @@ if __name__ == "__main__":
                         # select the batch of trajectory entries
                         params = [traj_values[k][idx_start : idx_end] for k in traj_attributes]
 
-                        (states, actions, next_states, \
-                        rewards, old_log_probs, dones,
-                        values, advantages, returns) = params
+                        (states, actions, log_probs, advantages, returns) = params
 
                         # we like all tensors to be shaped (batch_size, value_dims)                                                
                         returns = returns.unsqueeze(1)
                         advantages = advantages.unsqueeze(1)
                                                 
-                        agent.learn(old_log_probs, states, actions, advantages, returns, values)
+                        agent.learn(log_probs, states, actions, advantages, returns)
 
             end_time = time.time()
 
             rewards = trajectory_collector.scores_by_episode[n_episodes : ]
 
             for idx_r, reward in enumerate(rewards):
-                mean_reward = reward_tracker.reward(reward, n_episodes + idx_r, (end_time - start) / 1000.)
+                mean_reward = reward_tracker.reward(reward, n_episodes + idx_r, end_time - start)
 
                 if mean_reward is not None and max_score < mean_reward:
                     if max_score >= SOLVED_SCORE:

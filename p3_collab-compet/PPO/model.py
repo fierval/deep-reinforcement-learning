@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-HID_SIZE = 128
+HID_SIZE = 512
 
 class GaussianPolicyActor(nn.Module):
     def __init__(self, obs_size, act_size):
@@ -11,12 +11,15 @@ class GaussianPolicyActor(nn.Module):
         self.action_dim = act_size
         self.state_dim = obs_size
 
+        hid_size = HID_SIZE
+        hid_size_1 = HID_SIZE // 2
+
         self.mu = nn.Sequential(
-            nn.Linear(obs_size + 1, HID_SIZE),
+            nn.Linear(obs_size + 1, hid_size),
             nn.Tanh(),
-            nn.Linear(HID_SIZE, HID_SIZE),
+            nn.Linear(hid_size, hid_size_1),
             nn.Tanh(),
-            nn.Linear(HID_SIZE, act_size),
+            nn.Linear(hid_size_1, act_size),
             nn.Tanh(),
         )
         self.logstd = nn.Parameter(torch.zeros(act_size))
@@ -45,18 +48,23 @@ class GaussianPolicyActor(nn.Module):
             actions = dist.sample()
         log_prob = dist.log_prob(actions)
         log_prob = torch.sum(log_prob, dim=-1)
-        return actions, log_prob, dist
+        entropy = torch.sum(dist.entropy(), dim=-1)
+
+        return actions, log_prob, entropy
 
 class ModelCritic(nn.Module):
     def __init__(self, obs_size):
         super().__init__()
 
+        hid_size = HID_SIZE
+        hid_size_1 = HID_SIZE // 2
+
         self.value = nn.Sequential(
-            nn.Linear(obs_size, HID_SIZE),
+            nn.Linear(obs_size, hid_size),
             nn.ReLU(),
-            nn.Linear(HID_SIZE, HID_SIZE),
+            nn.Linear(hid_size, hid_size_1),
             nn.ReLU(),
-            nn.Linear(HID_SIZE, 1),
+            nn.Linear(hid_size_1, 1),
         )
 
     def forward(self, x):

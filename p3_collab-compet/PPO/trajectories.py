@@ -15,7 +15,7 @@ class TrajectoryCollector:
             "values", "advantages", "returns"
         ]
 
-    def __init__(self, env, policy, policy_critic, num_agents, tmax=3, gamma = 0.99, gae_lambda = 0.95):
+    def __init__(self, env, policy, policy_critic, num_agents, tmax=3, gamma = 0.99, gae_lambda = 0.95, debug = False):
         self.env = env
         self.policy = policy
         self.policy_critic = policy_critic
@@ -25,6 +25,8 @@ class TrajectoryCollector:
         self.tmax = tmax
         self.gae_lambda = gae_lambda
         self.gamma = gamma
+
+        self.debug = debug
 
         self.rewards = None
         self.scores_by_episode = []
@@ -92,8 +94,10 @@ class TrajectoryCollector:
             # in order to collect all actions and all rewards we now need to join predicted actions and pipe them 
             # through the environment
             states = self.last_states
-            actions, log_probs, _ = self.policy(states, self.idx_me)
-            values = self.policy_critic(states)
+            pred = self.policy(states, self.idx_me)
+            pred = [v.detach() for v in pred]
+            actions, log_probs, _ = pred
+            values = self.policy_critic(states).detach()
 
             # one step forward. We need to move actions to host
             # so we can feed them to the environment
@@ -129,8 +133,17 @@ class TrajectoryCollector:
                 self.rewards = None
                 self.reset()
 
+        # append remaining rewards
+        # TODO: debug only
+        if self.debug and self.rewards is not None:
+            print("DEBUG: flushing rewards")
+            rewards_mean = self.rewards.max(axis=0).mean()
+            self.scores_by_episode.append(rewards_mean)
+            self.rewards = None
+            self.reset()
+            
         # append returns and advantages
-        values = self.policy_critic(self.last_states)
+        values = self.policy_critic(self.last_states).detach()
 
         for i, b in enumerate(buffer):
             b["advantages"], b["returns"] = self.calc_returns(b["rewards"], b["values"], b["dones"], values[i, :])
