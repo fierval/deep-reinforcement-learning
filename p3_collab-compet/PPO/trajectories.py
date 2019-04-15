@@ -38,21 +38,25 @@ class TrajectoryCollector:
     def to_tensor(x, dtype=np.float32):
         return torch.from_numpy(np.array(x).astype(dtype)).to(device)
 
+    def add_agents_to_state(self, state):
+        return state
+        # return torch.cat((state, 0.001 * self.idx_me), dim=1)
+
     def reset(self):
         self.brain_name = self.env.brain_names[0]
         env_info = self.env.reset(train_mode=True)[self.brain_name]
         self.last_states = self.to_tensor(env_info.vector_observations)
+        self.last_states = self.add_agents_to_state(self.last_states)
 
     def calc_returns(self, rewards, values, dones, last_values):
-        
-        n_step = len(rewards)
+        n_step, n_agent = rewards.shape
 
         # Create empty buffer
-        GAE = torch.zeros(n_step).float().to(device)
-        returns = torch.zeros(n_step).float().to(device)
+        GAE = torch.zeros_like(rewards).float().to(device)
+        returns = torch.zeros_like(rewards).float().to(device)
 
         # Set start values
-        GAE_current = torch.zeros(1).float().to(device)
+        GAE_current = torch.zeros(n_agent).float().to(device)
         returns_current = last_values
         values_next = last_values
 
@@ -83,18 +87,15 @@ class TrajectoryCollector:
         A list  of dictionaries, where each list contains a trajectory for its agent
         """
 
-        buffer = []
+        buffer = {k: [] for k in self.buffer_attrs}
         
-        # tempting to write this as as [{{k: [] for k in self.buffer_attrs}}] * self.num_agents, but it's a bug! :)
-        for i in range(self.num_agents):
-            buffer.append({k: [] for k in self.buffer_attrs})
-
         # split trajectory between agents
         for t in range(self.tmax):
             # in order to collect all actions and all rewards we now need to join predicted actions and pipe them 
             # through the environment
+            
             states = self.last_states
-            pred = self.policy(states, self.idx_me)
+            pred = self.policy(states)
             pred = [v.detach() for v in pred]
             actions, log_probs, _ = pred
             values = self.policy_critic(states).detach()
@@ -105,21 +106,20 @@ class TrajectoryCollector:
 
             env_info = self.env.step(actions_np)[self.brain_name]
 
-            for i in range(self.num_agents):
-                memory = {}
-                memory["states"] = states[i].unsqueeze(0)
-                memory["actions"], memory["log_probs"]= actions[i].unsqueeze(0), log_probs[i].unsqueeze(0)
-                memory["values"] = values[i].unsqueeze(0)
+            memory = {}
+            memory["states"] = states
+            memory["actions"], memory["log_probs"]= actions, log_probs
+            memory["values"] = values
 
-                memory["next_states"] = self.to_tensor(env_info.vector_observations[i]).unsqueeze(0)
-                memory["rewards"] = self.to_tensor(env_info.rewards[i]).unsqueeze(0)
-                memory["dones"] = self.to_tensor(env_info.local_done[i], dtype=np.uint8).unsqueeze(0)
+            memory["next_states"] = self.add_agents_to_state(self.to_tensor(env_info.vector_observations))
+            memory["rewards"] = self.to_tensor(env_info.rewards)
+            memory["dones"] = self.to_tensor(env_info.local_done, dtype=np.uint8)
                 
-                # stack one step memory to buffer
-                for k, v in memory.items():
-                    buffer[i][k].append(v)
+            # stack one step memory to buffer
+            for k, v in memory.items():
+                buffer[k].append(v.unsqueeze(0))
 
-            self.last_states = self.to_tensor(env_info.vector_observations)
+            self.last_states = memory["next_states"]
 
             r = np.array(env_info.rewards)[None,:]
             if self.rewards is None:
@@ -133,24 +133,21 @@ class TrajectoryCollector:
                 self.rewards = None
                 self.reset()
 
-        # append remaining rewards
-        # TODO: debug only
-        if self.debug and self.rewards is not None:
-            print("DEBUG: flushing rewards")
-            rewards_mean = self.rewards.sum(axis=0).max()
-            self.scores_by_episode.append(rewards_mean)
-            self.rewards = None
-            self.reset()
-            
+        # create tensors
+        for k, v in buffer.items():
+            # advantages and returns have not yet been computed
+            if len(v) > 0:
+                buffer[k] = torch.cat(v, dim=0)
+
         # append returns and advantages
         values = self.policy_critic(self.last_states).detach()
+        buffer["advantages"], buffer["returns"] = self.calc_returns(buffer["rewards"], buffer["values"], buffer["dones"], values)
 
-        for i, b in enumerate(buffer):
-            b["advantages"], b["returns"] = self.calc_returns(b["rewards"], b["values"], b["dones"], values[i, :])
-
-            for k, v in b.items():
-                if k in ["advantages", "returns"]:
-                    continue
-                b[k] = torch.cat(v, dim=0)
+        for k, v in buffer.items():
+            # flatten everything.
+            if len(v.shape) == 3:
+                buffer[k] = v.reshape([-1, v.shape[-1]])
+            else:
+                buffer[k] = v.reshape([-1])
 
         return buffer    

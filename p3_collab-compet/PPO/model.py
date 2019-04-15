@@ -20,7 +20,7 @@ class GaussianPolicyActor(nn.Module):
         hid_size_1 = HID_SIZE // 2
 
         self.mu = nn.Sequential(
-            nn.Linear(obs_size + 1, hid_size),
+            nn.Linear(obs_size, hid_size),
             nn.LeakyReLU(),
             nn.Linear(hid_size, hid_size_1),
             nn.LeakyReLU(),
@@ -31,7 +31,7 @@ class GaussianPolicyActor(nn.Module):
         xavier(self.mu)                
         self.logstd = nn.Parameter(torch.zeros(act_size))
 
-    def forward(self, x, idx, actions=None):
+    def forward(self, x, actions=None):
         """
         Inspired by: https://github.com/tnakae/Udacity-DeepRL-p3-collab-compet/blob/master/PPO/network.py
         
@@ -45,8 +45,6 @@ class GaussianPolicyActor(nn.Module):
         Returns:
             [tensor] -- [actions, log_prob, entropy, distribution]
         """
-
-        x = torch.cat((x, idx), dim = 1)
 
         mean = self.mu(x)
         dist = torch.distributions.Normal(mean, F.softplus(self.logstd))
@@ -78,5 +76,5 @@ class ModelCritic(nn.Module):
         xavier(self.value)
 
     def forward(self, x):
-        return self.value(x)
+        return self.value(x).squeeze(-1)
 

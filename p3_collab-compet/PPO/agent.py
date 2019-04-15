@@ -9,12 +9,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class PPOAgent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, index, policy, optimizer, policy_critic, optimizer_critic, tb_tracker, epsilon, beta):
+    def __init__(self, policy, optimizer, policy_critic, optimizer_critic, tb_tracker, epsilon, beta):
         """Initialize an Agent object.
         
         Params
         ======
-            index (int): agent index parameter
             policy (Pytorch network): policy to be learned/executed
             optimizer (Pytorch optimizer): optimizer to be used
             policy_critic (Pytorch network): policy critic for V function
@@ -33,19 +32,18 @@ class PPOAgent():
         self.beta = beta
         self.epsilon = epsilon
         
-        # extra parameter to be added to states
-        self.idx_me = None
-        self.index = index
-
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
 
-    def act(self, state):
+    def act(self, state, idx):
         state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+        idx = torch.tensor([idx], dtype=torch.float32, device=device).unsqueeze(0)
+
+        state = torch.cat((state, idx), dim=1)
 
         self.policy.eval()
         with torch.no_grad():
-            actions, _, _ = self.policy(state, self.idx_me)
+            actions, _, _ = self.policy(state)
         self.policy.train()
 
         return torch.clamp(actions, -1, 1)
@@ -58,7 +56,7 @@ class PPOAgent():
         rewards_normalized = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1.e-10)
 
         # convert states to policy (or probability)
-        _, new_log_probs, entropy = self.policy(states, self.idx_me, actions)
+        _, new_log_probs, entropy = self.policy(states, actions)
 
         # ratio for clipping
         ratio = torch.exp(new_log_probs - old_log_probs)
@@ -80,8 +78,6 @@ class PPOAgent():
         
         """
 
-        self.idx_me = (torch.ones((states.shape[0], 1)) * self.index).to(device)
-
         # surrogate function (actor)
         self.optimizer.zero_grad()
 
@@ -89,10 +85,9 @@ class PPOAgent():
 
         L.backward()
         
-        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 10.)        
         self.optimizer.step()
 
-        self.tb_tracker.track(f"loss_policy_{self.index}", L.to("cpu"), self.t_step)
+        self.tb_tracker.track(f"loss_policy", L.to("cpu"), self.t_step)
         del L
 
         # v-function (critic)
@@ -101,8 +96,10 @@ class PPOAgent():
         values = self.policy_critic(states)
         loss_values = F.mse_loss(values, returns)
         loss_values.backward()
+        torch.nn.utils.clip_grad_norm_(self.policy_critic.parameters(), 10.)
+        
         self.optimizer_critic.step()
-        self.tb_tracker.track(f"loss_value_{self.index}", loss_values.to("cpu"), self.t_step)
+        self.tb_tracker.track(f"loss_value", loss_values.to("cpu"), self.t_step)
 
         # decay epsilon and beta as we train
         #self.epsilon *= 0.9999

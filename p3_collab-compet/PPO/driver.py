@@ -12,14 +12,14 @@ from trajectories import TrajectoryCollector
 from collections import defaultdict
 
 LR = 1e-03              # learing rate
-LR_CRITIC = 1e-03       # learning rate critic
+LR_CRITIC = 5 * 1e-04       # learning rate critic
 EPSILON = 0.1           # action clipping param: [1-EPSILON, 1+EPSILON]
 BETA = 0.01             # regularization parameter for entropy term
 EPOCHS = 20              # train for this number of epochs at a time
 TMAX = 1024              # maximum trajectory length
 MAX_EPISODES = 15000     # episodes
 AVG_WIN = 100           # moving average over...
-SEED = 1                # leave everything to chance
+SEED = 32                # leave everything to chance
 BATCH_SIZE = 128         # number of tgajectories to collect for learning
 SOLVED_SCORE = 0.5      # score at which we are done
 
@@ -52,21 +52,18 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
 
     # create policy to be trained & optimizer
-    policy = GaussianPolicyActor(state_size, action_size).to(device)
+    policy = GaussianPolicyActor(state_size + 1, action_size).to(device)
     optimizer = torch.optim.Adam(policy.parameters(), lr=LR)
 
-    policy_critic = ModelCritic(state_size).to(device)
+    policy_critic = ModelCritic(state_size + 1).to(device)
     optimizer_critic = torch.optim.Adam(policy_critic.parameters(), lr=LR_CRITIC)
 
     writer = tensorboardX.SummaryWriter(comment="-mappo")
     
-    # create agents
-    agents = []
     trajectory_collector = TrajectoryCollector(env, policy, policy_critic, num_agents, tmax=TMAX, gamma=GAMMA, gae_lambda=GAE_LAMBDA, debug=debug)
     tb_tracker = TBMeanTracker(writer, EPOCHS)
 
-    for i in range(1, num_agents + 1):
-        agents.append(PPOAgent(i, policy, optimizer, policy_critic, optimizer_critic, tb_tracker, EPSILON, BETA))
+    agent = PPOAgent(policy, optimizer, policy_critic, optimizer_critic, tb_tracker, EPSILON, BETA)
 
     n_episodes = 0
     max_score = - np.Inf
@@ -80,33 +77,27 @@ if __name__ == "__main__":
             start = time.time()
             
             trajectories = trajectory_collector.create_trajectories()
-
-            n_samples = trajectories[0]['actions'].shape[0]
+            
+            n_samples = trajectories['actions'].shape[0]
             n_batches = int((n_samples + 1) / BATCH_SIZE)
 
             # train agents in a round-robin for the number of epochs
             for epoch in range(EPOCHS):
+                for batch in range(n_batches):    
 
-                for i, agent in enumerate(agents):
-                
-                    # convert lists of dictionaries to tensors
-                    traj_values = trajectories[i]
+                    idx_start = BATCH_SIZE * batch
+                    idx_end = idx_start + BATCH_SIZE
 
-                    for batch in range(n_batches):    
+                    # select the batch of trajectory entries
+                    params = [trajectories[k][idx_start : idx_end] for k in traj_attributes]
 
-                        idx_start = BATCH_SIZE * batch
-                        idx_end = idx_start + BATCH_SIZE
+                    (states, actions, log_probs, advantages, returns) = params
 
-                        # select the batch of trajectory entries
-                        params = [traj_values[k][idx_start : idx_end] for k in traj_attributes]
-
-                        (states, actions, log_probs, advantages, returns) = params
-
-                        # we like all tensors to be shaped (batch_size, value_dims)                                                
-                        returns = returns.unsqueeze(1)
-                        advantages = advantages.unsqueeze(1)
-                                                
-                        agent.learn(log_probs, states, actions, advantages, returns)
+                    # we like all tensors to be shaped (batch_size, value_dims)                                                
+                    returns = returns.unsqueeze(1)
+                    advantages = advantages.unsqueeze(1)
+                                            
+                    agent.learn(log_probs, states, actions, advantages, returns)
 
             end_time = time.time()
 
