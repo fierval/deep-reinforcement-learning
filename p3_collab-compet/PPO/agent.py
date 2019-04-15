@@ -9,7 +9,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class PPOAgent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, policy, optimizer, policy_critic, optimizer_critic, tb_tracker, epsilon, beta):
+    def __init__(self, policy, tb_tracker, lr, epsilon, beta):
         """Initialize an Agent object.
         
         Params
@@ -24,11 +24,9 @@ class PPOAgent():
         """
         
         self.policy = policy
-        self.optimizer = optimizer
-        self.policy_critic = policy_critic
-        self.optimizer_critic = optimizer_critic
         self.tb_tracker = tb_tracker
-        
+
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)        
         self.beta = beta
         self.epsilon = epsilon
         
@@ -52,37 +50,34 @@ class PPOAgent():
         """Learning step
         
         """
-        rewards_normalized = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1.e-10)
+        _, log_probs, entropy, values = self.policy(states, actions)
 
-        _, log_probs, entropy = self.policy(states, actions)
-
-        values = self.policy_critic(states)
+        self.optimizer.zero_grad()
 
         # critic loss
-        self.optimizer_critic.zero_grad()
         loss_values = F.mse_loss(values, returns)
-
-        loss_values.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy_critic.parameters(), 10.)
-
-        self.optimizer_critic.step()
         self.tb_tracker.track(f"loss_values", loss_values.to("cpu"), self.t_step)
 
         # actor loss
-        self.optimizer.zero_grad()
         ratio = torch.exp(log_probs - old_log_probs)
         ratio_clamped = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon)
-        adv_PPO = torch.min(ratio * rewards_normalized, ratio_clamped * rewards_normalized)
-
+        
+        adv_PPO = torch.min(ratio * advantages, ratio_clamped * advantages)
         loss_policy = -torch.mean(adv_PPO + self.beta * entropy)
-        loss_policy.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 10.)
-        self.optimizer.step()
-
-        # surrogate function (actor)
 
         self.tb_tracker.track(f"loss_policy", loss_policy.to("cpu"), self.t_step)
-        del loss_policy
+
+        # generalized loss
+        loss = loss_policy + loss_values
+        self.tb_tracker.track(f"loss", loss_policy.to("cpu"), self.t_step)
+
+        loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 10.)
+
+        self.optimizer.step()
+
+        del loss
 
         # decay epsilon and beta as we train
         #self.epsilon *= 0.9999
