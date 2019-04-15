@@ -3,13 +3,13 @@ import torch
 import numpy as np
 import time
 import os
+import sys
 
 from unityagents import UnityEnvironment
 from agent import PPOAgent
 import tensorboardX
 from utils import RewardTracker, TBMeanTracker
 from trajectories import TrajectoryCollector
-from collections import defaultdict
 import torch.optim.lr_scheduler as lr_scheduler
 
 
@@ -31,8 +31,12 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
 
-    root_path = "/home/boris/git/udacity/drl/p3_collab-compet"    
-    env = UnityEnvironment(file_name=os.path.join(root_path, "Tennis_Linux/Tennis.x86_64"))
+    root_path = os.path.split(os.path.split(__file__)[0])[0]
+
+    if sys.platform == 'linux':
+        env = UnityEnvironment(file_name=os.path.join(root_path, "Tennis_Linux/Tennis.x86_64"))
+    else:
+        env = UnityEnvironment(file_name=os.path.join(root_path, "Tennis_Win/Tennis"))
     
     brain_name = env.brain_names[0]
     brain = env.brains[brain_name]
