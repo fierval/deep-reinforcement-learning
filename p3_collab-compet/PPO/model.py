@@ -25,7 +25,7 @@ class GaussianPolicyActor(nn.Module):
             nn.Linear(hid_size, hid_size_1),
             nn.LeakyReLU(),
             nn.Linear(hid_size_1, act_size),
-            nn.LeakyReLU(),
+            nn.Tanh(),
         )
 
         xavier(self.mu)                
@@ -71,6 +71,7 @@ class ModelCritic(nn.Module):
             nn.Linear(hid_size, hid_size_1),
             nn.LeakyReLU(),
             nn.Linear(hid_size_1, 1),
+            nn.LeakyReLU(),
         )
         
         xavier(self.value)

@@ -15,7 +15,7 @@ class TrajectoryCollector:
             "values", "advantages", "returns"
         ]
 
-    def __init__(self, env, policy, policy_critic, num_agents, tmax=3, gamma = 0.99, gae_lambda = 0.95, debug = False):
+    def __init__(self, env, policy, policy_critic, num_agents, tmax=3, gamma = 0.99, gae_lambda = 0.96, debug = False):
         self.env = env
         self.policy = policy
         self.policy_critic = policy_critic

@@ -11,15 +11,15 @@ from utils import RewardTracker, TBMeanTracker
 from trajectories import TrajectoryCollector
 from collections import defaultdict
 
-LR = 1e-03              # learing rate
-LR_CRITIC = 5 * 1e-04       # learning rate critic
+LR = 1e-04              # learing rate
+LR_CRITIC = 1e-04       # learning rate critic
 EPSILON = 0.1           # action clipping param: [1-EPSILON, 1+EPSILON]
 BETA = 0.01             # regularization parameter for entropy term
 EPOCHS = 20              # train for this number of epochs at a time
 TMAX = 1024              # maximum trajectory length
 MAX_EPISODES = 15000     # episodes
 AVG_WIN = 100           # moving average over...
-SEED = 32                # leave everything to chance
+SEED = 15                # leave everything to chance
 BATCH_SIZE = 128         # number of tgajectories to collect for learning
 SOLVED_SCORE = 0.5      # score at which we are done
 
@@ -30,9 +30,9 @@ debug = False
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
-    
-    #env = UnityEnvironment(file_name="p3_collab-compet/Tennis_Linux/Tennis.x86_64")
-    env = UnityEnvironment(file_name="/home/boris/git/udacity/drl/p3_collab-compet/Tennis_Linux/Tennis.x86_64")
+
+    root_path = "/home/boris/git/udacity/drl/p3_collab-compet"    
+    env = UnityEnvironment(file_name=os.path.join(root_path, "Tennis_Linux/Tennis.x86_64"))
     
     brain_name = env.brain_names[0]
     brain = env.brains[brain_name]
@@ -49,13 +49,15 @@ if __name__ == "__main__":
     # examine the state space 
     states = env_info.vector_observations
     state_size = states.shape[1]
-    torch.manual_seed(SEED)
+    
+    # torch.manual_seed(SEED)
+    # np.random.seed(SEED)
 
     # create policy to be trained & optimizer
-    policy = GaussianPolicyActor(state_size + 1, action_size).to(device)
+    policy = GaussianPolicyActor(state_size, action_size).to(device)
     optimizer = torch.optim.Adam(policy.parameters(), lr=LR)
 
-    policy_critic = ModelCritic(state_size + 1).to(device)
+    policy_critic = ModelCritic(state_size).to(device)
     optimizer_critic = torch.optim.Adam(policy_critic.parameters(), lr=LR_CRITIC)
 
     writer = tensorboardX.SummaryWriter(comment="-mappo")
@@ -80,6 +82,11 @@ if __name__ == "__main__":
             
             n_samples = trajectories['actions'].shape[0]
             n_batches = int((n_samples + 1) / BATCH_SIZE)
+
+            idx = np.arange(n_samples)
+            np.random.shuffle(idx)
+            for k, v in trajectories.items():
+                trajectories[k] = v[idx]
 
             # train agents in a round-robin for the number of epochs
             for epoch in range(EPOCHS):
@@ -108,8 +115,8 @@ if __name__ == "__main__":
 
                 if mean_reward is not None and max_score < mean_reward:
                     if max_score >= SOLVED_SCORE:
-                        torch.save(policy.state_dict(), f'p3_collab-compet/checkpoint_actor_{mean_reward:.03f}.pth')
-                        torch.save(policy_critic.state_dict(), f'p3_collab-compet/checkpoint_critic_{mean_reward:.03f}.pth')
+                        torch.save(policy.state_dict(), os.path.join(root_path, f'checkpoint_actor_{mean_reward:.03f}.pth'))
+                        torch.save(policy_critic.state_dict(), os.path.join(root_path, f'checkpoint_critic_{mean_reward:.03f}.pth'))
 
                     max_score = mean_reward
 
