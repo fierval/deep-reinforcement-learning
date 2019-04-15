@@ -22,7 +22,7 @@ AVG_WIN = 100           # moving average over...
 SEED = 15                # leave everything to chance
 BATCH_SIZE = 128         # number of tgajectories to collect for learning
 SOLVED_SCORE = 0.5      # score at which we are done
-STEP_DECAY = 1700       # when to decay learning rate
+STEP_DECAY = 2000       # when to decay learning rate
 GAMMA = 0.99            # discount factor
 GAE_LAMBDA = 0.96       # lambda-factor in the advantage estimator for PPO
 
@@ -63,8 +63,8 @@ if __name__ == "__main__":
 
     agent = PPOAgent(policy, tb_tracker, LR, EPSILON, BETA)
     
-    scheduler = lr_scheduler.LambdaLR(agent.optimizer, lambda ep: 0.1 if ep == STEP_DECAY else 1)
-
+    #scheduler = lr_scheduler.LambdaLR(agent.optimizer, lambda ep: 0.1 if ep == STEP_DECAY else 1)
+    scheduler = lr_scheduler.MultiStepLR(agent.optimizer, [k * STEP_DECAY for k in range(1, 3)], gamma=0.1)
     n_episodes = 0
     max_score = - np.Inf
 
