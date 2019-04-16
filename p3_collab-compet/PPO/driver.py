@@ -19,7 +19,7 @@ BETA = 0.01             # regularization parameter for entropy term
 EPOCHS = 20              # train for this number of epochs at a time
 TMAX = 1024              # maximum trajectory length
 AVG_WIN = 100           # moving average over...
-SEED = 15                # leave everything to chance
+SEED = 12                # leave everything to chance
 BATCH_SIZE = 128         # number of tgajectories to collect for learning
 SOLVED_SCORE = 0.5      # score at which we are done
 STEP_DECAY = 2000       # when to decay learning rate
@@ -31,7 +31,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
 
-    root_path = os.path.split(os.path.split(__file__)[0])[0]
+    root_path = os.path.split(os.path.split(__file__)[0])
+    if root_path[0] == '':
+        root_path = ".."
+    else:
+        root_path = os.path.split(root_path)[0]
 
     if sys.platform == 'linux':
         env = UnityEnvironment(file_name=os.path.join(root_path, "Tennis_Linux/Tennis.x86_64"))
@@ -60,7 +64,7 @@ if __name__ == "__main__":
     # create policy to be trained & optimizer
     policy = GaussianPolicyActorCritic(state_size, action_size).to(device)
 
-    writer = tensorboardX.SummaryWriter(comment="-mappo")
+    writer = tensorboardX.SummaryWriter(comment=f"-mappo_{SEED}")
     
     trajectory_collector = TrajectoryCollector(env, policy, num_agents, tmax=TMAX, gamma=GAMMA, gae_lambda=GAE_LAMBDA, debug=debug)
     tb_tracker = TBMeanTracker(writer, EPOCHS)
@@ -101,7 +105,7 @@ if __name__ == "__main__":
                 scheduler.step()
 
                 # keep current spectacular scores
-                if 1 > reward > max_score:
+                if reward > max_score and reward > 1:
                     torch.save(policy.state_dict(), os.path.join(root_path, f'checkpoint_actor_{reward:.03f}.pth'))
                     max_score = reward
 
