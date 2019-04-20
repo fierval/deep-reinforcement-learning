@@ -131,7 +131,7 @@ class TrajectoryCollector:
         # append returns and advantages
         values = self.policy.state_values(self.last_states).detach()
         advantages, buffer["returns"] = self.calc_returns(buffer["rewards"], buffer["values"], buffer["dones"], values)
-        buffer["advantages"] = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
+        buffer["advantages"] = (advantages - advantages.mean(dim=0)) / (advantages.std(dim=0) + 1e-10)
 
         for k, v in buffer.items():
             # flatten everything.
