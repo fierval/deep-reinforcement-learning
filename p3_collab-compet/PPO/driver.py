@@ -31,11 +31,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
 
-    root_path = os.path.split(os.path.split(__file__)[0])
-    if root_path[0] == '':
-        root_path = ".."
-    else:
-        root_path = os.path.split(root_path)[0]
+    root_path = os.path.split(os.path.split(__file__)[0])[0]
+    if root_path == '':
+        root_path = os.path.abspath("..")
 
     if sys.platform == 'linux':
         env = UnityEnvironment(file_name=os.path.join(root_path, "Tennis_Linux/Tennis.x86_64"))

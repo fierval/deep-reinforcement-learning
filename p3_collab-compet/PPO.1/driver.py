@@ -21,7 +21,7 @@ TMAX = 1024              # maximum trajectory length
 AVG_WIN = 100           # moving average over...
 SEED = 12                # leave everything to chance
 BATCH_SIZE = 128         # number of tgajectories to collect for learning
-SOLVED_SCORE = 0.5      # score at which we are done
+SOLVED_SCORE = 100      # score at which we are done
 STEP_DECAY = 2000       # when to decay learning rate
 GAMMA = 0.99            # discount factor
 GAE_LAMBDA = 0.96       # lambda-factor in the advantage estimator for PPO
@@ -31,11 +31,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
 
-    root_path = os.path.split(os.path.split(__file__)[0])
-    if root_path[0] == '':
-        root_path = ".."
-    else:
-        root_path = os.path.split(root_path)[0]
+    root_path = os.path.split(os.path.split(__file__)[0])[0]
+    if root_path == '':
+        root_path = os.path.abspath("..")
 
     if sys.platform == 'linux':
         env = UnityEnvironment(file_name=os.path.join(root_path, "Tennis_Linux/Tennis.x86_64"))
@@ -62,7 +60,7 @@ if __name__ == "__main__":
     # np.random.seed(SEED)
 
     # create policy to be trained & optimizer
-    policy = GaussianPolicyActorCritic(state_size, action_size).to(device)
+    policy = GaussianPolicyActorCritic(state_size + 1, action_size).to(device)
 
     writer = tensorboardX.SummaryWriter(comment=f"-mappo_{SEED}")
     
@@ -72,7 +70,7 @@ if __name__ == "__main__":
     agent = PPOAgent(policy, tb_tracker, LR, EPSILON, BETA)
     
     #scheduler = lr_scheduler.LambdaLR(agent.optimizer, lambda ep: 0.1 if ep == STEP_DECAY else 1)
-    scheduler = lr_scheduler.MultiStepLR(agent.optimizer, [k * STEP_DECAY for k in range(1, 3)], gamma=0.1)
+    scheduler = lr_scheduler.MultiStepLR(agent.optimizer, [k * STEP_DECAY for k in range(1, 2)], gamma=0.1)
     n_episodes = 0
     max_score = - np.Inf
 

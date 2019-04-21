@@ -20,7 +20,7 @@ class TrajectoryCollector:
         self.policy = policy
 
         self.num_agents = num_agents
-        self.idx_me = torch.tensor([index+1 for index in range(num_agents)], dtype=torch.float).unsqueeze(1).to(device)
+        self.idx_me = torch.tensor([index for index in range(num_agents)], dtype=torch.float).unsqueeze(1).to(device)
 
         self.tmax = tmax
         self.gae_lambda = gae_lambda
@@ -39,8 +39,7 @@ class TrajectoryCollector:
         return torch.from_numpy(np.array(x).astype(dtype)).to(device)
 
     def add_agents_to_state(self, state):
-        return state
-        # return torch.cat((state, 0.001 * self.idx_me), dim=1)
+        return torch.cat((state, self.idx_me), dim=1)
 
     def reset(self):
         self.brain_name = self.env.brain_names[0]
@@ -109,7 +108,7 @@ class TrajectoryCollector:
             for k, v in memory.items():
                 buffer[k].append(v.unsqueeze(0))
 
-            self.last_states = memory["next_states"]
+            self.last_states = self.add_agents_to_state(memory["next_states"])
             r = np.array(env_info.rewards)[None,:]
             if self.rewards is None:
                 self.rewards = r
@@ -131,7 +130,7 @@ class TrajectoryCollector:
         # append returns and advantages
         values = self.policy.state_values(self.last_states).detach()
         advantages, buffer["returns"] = self.calc_returns(buffer["rewards"], buffer["values"], buffer["dones"], values)
-        buffer["advantages"] = (advantages - advantages.mean(dim=0)) / (advantages.std(dim=0) + 1e-10)
+        buffer["advantages"] = (advantages - advantages.mean(dim=0).unsqueeze(0)) / (advantages.std(dim=0).unsqueeze(0) + 1e-10)
 
         for k, v in buffer.items():
             # flatten everything.
