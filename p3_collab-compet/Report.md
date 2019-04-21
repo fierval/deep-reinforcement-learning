@@ -11,7 +11,7 @@ The authors of the paper did not test PPO but the application is straightforward
 
 ## Shared Parameters PPO
 
-In this modified PPO, we maximize a slightly modified surrogate function, expressed in terms of negative loss so we can fit it to any existing machine learning frameworks that do SGD type optimitzaions for us:
+In this modified PPO, we maximize a slightly modified surrogate function, expressed in terms of negative loss so we can fit it to any existing machine learning frameworks that do SGD-based type optimitzaions for us:
 
 ![surrogate](images/ps-objective.png)
 
@@ -47,7 +47,9 @@ Like in the regular PPO, we collect the trajectories for `TMAX` steps, across ep
 
 We then train on `BATCH_SIZE` of trajectory pieces for a number of `EPOCHS`
 
-The `act` function of the agent receives agent's index together with the state for action computations. Actions are sampled from the distribution learned during training.
+Agent identity participates in advantage computation during advantage normalization step, where each advantage is normalized based on mean and standard deviation of the agent for which it is computed.
+
+During the test phase, the `act` function of the agent receives agent's index together with the state for action computations. Actions are sampled from the distribution learned during training.
 
 ## Experiments
 
