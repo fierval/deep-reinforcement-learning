@@ -47,7 +47,7 @@ Like in the regular PPO, we collect the trajectories for `TMAX` steps, across ep
 
 We then train on `BATCH_SIZE` of trajectory pieces for a number of `EPOCHS`
 
-Agent identity participates in advantage computation during advantage normalization step, where each advantage is normalized based on mean and standard deviation of the agent for which it is computed.
+Agent identity participates in advantage computation during advantage normalization step, where each advantage is normalized based on mean and standard deviation of the advantages belonging to the agent for which it is computed.
 
 During the test phase, the `act` function of the agent receives agent's index together with the state for action computations. Actions are sampled from the distribution learned during training.
 
