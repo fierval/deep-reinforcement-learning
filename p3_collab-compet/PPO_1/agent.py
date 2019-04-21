@@ -39,7 +39,7 @@ class PPOAgent():
 
         self.policy.eval()
         with torch.no_grad():
-            actions, _, _ = self.policy(state)
+            actions, _, _, _ = self.policy(state)
         self.policy.train()
 
         return torch.clamp(actions, -1, 1)
