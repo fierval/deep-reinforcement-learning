@@ -80,9 +80,9 @@ In terms of highest rewards achieved fast, the maximum was `2.7`, this is the po
 
 ## Reproduceability
 
-Worth noting, that I was not using the `SEED` parameter, even though I tried to for reproduceability. Unfortunately things did not converge at all or very slowly. I tried about half a dozen of different seeds, naturally it's a bit fewer than the number of seeds available, but blindly searching for chance is too time consuming a process as all buyers of lottery tickets no doubt know.
+Worth noting, that I was not using the `SEED` parameter, even though I tried to for reproduceability. Unfortunately things did not converge at all or very slowly. I tried about half a dozen of different seeds, naturally it's a bit fewer than the number of seeds available, but blindly searching for chance is too time consuming a process.
 
-Luckily, we did achieve consistent reproduceability without explicitly seeding any random generators, though.
+Luckily, we did achieve consistent reproduceability without explicitly seeding any random generators.
 
 ## Rewards Graph
 
@@ -98,7 +98,7 @@ This environment was solved in `3432` episodes.
 
 * I did not experiment with trajectory sizes and the number of epochs, although reducing the batch size did seem to negatively impact performance. There is never enough hyperparameter tuning!
 
-* The environment was quite simple, so the shared parameters algorithm was probably a bit of an overkill for it. It would be great to try it on more complex environments, like Soccer where 4 agents of 2 agent classes are involved.
+* The environment was quite simple, so the shared parameters algorithm was probably a bit of an overkill for it. It would be great to try it on more complex environments, like Soccer where 4 agents of 2 agent classes are involved. This is why I'm keeping the Soccer related files / README sections in the repo, even though it is not solved at the time of writing this report.
 
 * A project to consider after this course is done, is training an agent with a shared parameters algorithm on a platform game written from scratch, with agent-player playing against agent-monsters.
 
