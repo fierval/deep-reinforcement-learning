@@ -34,10 +34,8 @@ class PPOAgent():
         self.t_step = 0
 
     def act(self, state, idx):
+        state = np.r_[state, idx]
         state = torch.from_numpy(state).float().unsqueeze(0).to(device)
-        idx = torch.tensor([idx], dtype=torch.float32, device=device).unsqueeze(0)
-
-        state = torch.cat((state, idx), dim=1)
 
         self.policy.eval()
         with torch.no_grad():
