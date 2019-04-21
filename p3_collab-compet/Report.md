@@ -90,6 +90,16 @@ From the [notebook](Tennis.ipynb):
 
 This environment was solved in `3432` episodes.
 
+## For the Future
+
+* The PPO algorithm is *very fast* (mainly because we don't maintain the replay buffer of any kind) which makes it ideal for trying things. In that sense it's a good way to improve performance of training, for which we were concerned in the previous project. However, folks seemed to have a lot of success with MADDPG, so it would be interesting to try that.
+
+* I did not experiment with trajectory sizes and the number of epochs, although reducing the batch size did seem to negatively impact performance. There is never enough hyperparameter tuning!
+
+* The environment was quite simple, so the shared parameters algorithm was probably a bit of an overkill for it. It would be great to try it on more complex environments, like Soccer where 4 agents of 2 agent classes are involved.
+
+* A project to consider after this course is done, is training an agent with a shared parameters algorithm on a platform game written from scratch, with agent-player playing against agent-monsters.
+
 ## References
 
 * [Cooperative Multi-Agent Control Using Deep
