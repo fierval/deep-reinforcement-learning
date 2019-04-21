@@ -49,7 +49,7 @@ We then train on `BATCH_SIZE` of trajectory pieces for a number of `EPOCHS`
 
 Agent identity participates in advantage computation during advantage normalization step, where each advantage is normalized based on mean and standard deviation of the advantages belonging to the agent for which it is computed.
 
-During the test phase, the `act` function of the agent receives agent's index together with the state for action computations. Actions are sampled from the distribution learned during training.
+During the test phase, the `act` function of an agent receives the agent's index together with the state for action computations. Actions are sampled from the distribution, parameters for which are computed by the model learned during training.
 
 ## Experiments
 
@@ -74,7 +74,7 @@ Here `LR` is initially set to `1e-03` but degraded to `1e-04` after 2000 episode
 
 ![tensorboard](PPO/tensorboard.png)
 
-In terms of highest rewards achieved fast, the maximum was `2.7`, this is the policy used in the animation for the [README](Readme.md) for this project. It results in a very boring game where nobody loses ever, or barely ever.
+In terms of highest rewards achieved fast, the maximum was `2.7`, this is the policy used in the animation for the [README](README.md) for this project. It results in a very boring game where nobody loses ever, or barely ever.
 
 ![tensorboard](PPO_1/tensorboard.png)
 
