@@ -7,7 +7,7 @@ This repository contains solutions to Udacity's [Deep Reinforcement Learning Nan
 
 - [x] [Navigation](p1_navigation): In the first project, you will train an agent to collect yellow bananas while avoiding blue bananas. Here is the [Report](p1_navigation/Report.md)
 - [x] [Continuous Control](p2_continuous-control): In the second project, you will train an robotic arm to reach target locations.
-- [ ] [Collaboration and Competition](p3_collab-compet): In the third project, you will train a pair of agents to play tennis! 
+- [x] [Collaboration and Competition](p3_collab-compet): In the third project, you will train a pair of agents to play tennis! 
 
 ## Setup
 
@@ -17,8 +17,11 @@ I am working with a Titan V GPU on Windows and Ubuntu. Highly recommended for de
 
 Becuse of this, I have removed `tensorflow 1.7.1` from `requirements.txt` used to install other requirements (see below). If you have GPU support and Tensorflow becomes required:
 
+The projects in this repo also use `tensorboardX` - Tensorboard bindings for PyTorch.
+
 ```bash
 pip install -U --ignore-installed tensorflow-gpu==1.7.1
+pip install tensorboardX
 ```
 
 ### PyTorch
